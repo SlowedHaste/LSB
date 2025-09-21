@@ -31,7 +31,7 @@ entity.onMobSpawn = function(mob)
 end
 
 entity.onMobEngaged = function(mob, target)
-    mob:setLocalVar("delay", os.time() + 30)
+    mob:setLocalVar("delay", GetSystemTime() + 30)
 end
 
 entity.onMobFight = function(mob, target)
@@ -42,17 +42,30 @@ entity.onMobFight = function(mob, target)
     end
 
     local delay = mob:getLocalVar("delay")
-    if os.time() > delay then -- Use Meteor every 30s, based on capture
+    if GetSystemTime() > delay then -- Use Meteor every 30s, based on capture
         mob:castSpell(218, target) -- meteor
-        mob:setLocalVar("delay", os.time() + 30)
+        mob:setLocalVar("delay", GetSystemTime() + 30)
     end
 
     if mob:getLocalVar("Meteor") == 1 then
         if mob:checkDistance(target) > 40 then
             mob:resetEnmity(target)
         else
-            mob:setLocalVar("Meteor", 0)
+            mob:setLocalVar("Meteor", 2)
             mob:useMobAbility(634) -- Final Meteor
+            mob:setLocalVar("FM_Check", GetSystemTime() + 10)
+        end
+    end
+
+    --Delayed Check to see if Final Meteor was cast, if not retry
+    if mob:getLocalVar("Meteor") == 2 then
+        local checkBy = mob:getLocalVar("FM_Check")
+        if checkBy > 0 and GetSystemTime() >= checkBy then
+            if mob:getLocalVar("FM_Done") == 0 then
+                -- Final Meteor didn't go off; try again next tick
+                mob:setLocalVar("Meteor", 1)
+            end
+            mob:setLocalVar("FM_Check", 0)
         end
     end
 end
@@ -65,6 +78,7 @@ entity.onMobWeaponSkill = function(target, mob, skill)
     if skill:getID() == 634 then -- Final Meteor
         mob:setMobMod(xi.mobMod.NO_MOVE, 1)
         mob:setAnimationSub(1)
+        mob:setLocalVar("FM_Done", 1)
         mob:timer(7000, function(mobArg)
             mobArg:setMagicCastingEnabled(true)
             mobArg:setAutoAttackEnabled(true)
