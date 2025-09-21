@@ -1,20 +1,19 @@
 -----------------------------------
 -- Area: Horlais Peak
 -- Mob: Chlevnik
--- KSNM99
+-- KSNM99 : Horns of War
+
+-- TODO : Update Howl to give 25% Attack instead of 15% - Update Meteor to 1.6 fTP + dINT * 3(!)
 -----------------------------------
 local entity = {}
 
 entity.onMobSpawn = function(mob)
     mob:setAnimationSub(3)
     mob:setUnkillable(true)
-    mob:addMod(xi.mod.ATT, 150)
-    mob:addMod(xi.mod.DEF, 180)
-    mob:addMod(xi.mod.EVA, 110)
-    mob:setMod(xi.mod.MDEF, 20)
     mob:setMod(xi.mod.TRIPLE_ATTACK, 5)
     mob:addMod(xi.mod.STUNRES, 90)
     mob:addMod(xi.mod.SLEEPRES, 90)
+    mob:setMod(xi.mod.DELAY, -1000)
     mob:setMobMod(xi.mobMod.NO_MOVE, 0)
     mob:setMobMod(xi.mobMod.ADD_EFFECT, 1)
     mob:setTP(3000) -- opens fight with a skill
@@ -42,8 +41,8 @@ entity.onMobFight = function(mob, target)
     end
 
     local delay = mob:getLocalVar("delay")
-    if GetSystemTime() > delay then -- Use Meteor every 30s, based on capture
-        mob:castSpell(218, target) -- meteor
+    if GetSystemTime() > delay then -- Cooldown on Meteor is 30 seconds.
+        mob:castSpell(218, target) -- Meteor
         mob:setLocalVar("delay", GetSystemTime() + 30)
     end
 
@@ -71,7 +70,7 @@ entity.onMobFight = function(mob, target)
 end
 
 entity.onAdditionalEffect = function(mob, target, damage)
-    return xi.mob.onAddEffect(mob, target, damage, xi.mob.ae.STUN, { power = math.random(7, 8), chance = 20 }) --based on captures
+    return xi.mob.onAddEffect(mob, target, damage, xi.mob.ae.STUN, { power = math.random(5, 10), chance = 25 }) -- 25% chance to stun for 5-10 seconds.
 end
 
 entity.onMobWeaponSkill = function(target, mob, skill)
