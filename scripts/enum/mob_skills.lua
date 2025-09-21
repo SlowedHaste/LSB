@@ -68,6 +68,8 @@ xi.mobSkill =
 
     DANSE_MACABRE            =  533,
 
+    PANZERFAUST              =  536,
+
     TREMOROUS_TREAD          =  540, -- Mammet-800
 
     VULTURE_3                =  626,
