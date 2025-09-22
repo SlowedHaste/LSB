@@ -3,16 +3,23 @@
 -- Mob: Chlevnik
 -- KSNM99 : Horns of War
 
--- TODO : Update Howl to give 25% Attack instead of 15% - Update Meteor to 1.6 fTP + dINT * 3(!)
+-- TODO : Update Howl to give 25% Attack instead of 15% - Update Meteor to 1.6 fTP + dINT * 3(!) (Specific to Chlevnik)
 -----------------------------------
 local entity = {}
+
+entity.onMobInitialize = function(mob)
+    mob:addImmunity(xi.immunity.LIGHT_SLEEP)
+    mob:addImmunity(xi.immunity.DARK_SLEEP)
+    mob:addImmunity(xi.immunity.PETRIFY)
+    mob:addImmunity(xi.immunity.SILENCE)
+    mob:setBehavior(bit.bor(mob:getBehavior(), xi.behavior.NO_TURN))
+end
 
 entity.onMobSpawn = function(mob)
     mob:setAnimationSub(3)
     mob:setUnkillable(true)
     mob:setMod(xi.mod.TRIPLE_ATTACK, 5)
     mob:addMod(xi.mod.STUNRES, 90)
-    mob:addMod(xi.mod.SLEEPRES, 90)
     mob:setMod(xi.mod.DELAY, -1000)
     mob:setMobMod(xi.mobMod.NO_MOVE, 0)
     mob:setMobMod(xi.mobMod.ADD_EFFECT, 1)
@@ -70,7 +77,7 @@ entity.onMobFight = function(mob, target)
 end
 
 entity.onAdditionalEffect = function(mob, target, damage)
-    return xi.mob.onAddEffect(mob, target, damage, xi.mob.ae.STUN, { power = math.random(5, 10), chance = 25 }) -- 25% chance to stun for 5-10 seconds.
+    return xi.mob.onAddEffect(mob, target, damage, xi.mob.ae.STUN, { chance = 25, duration = math.random(5, 10) }) -- 25% chance to stun for 5-10 seconds.
 end
 
 entity.onMobWeaponSkill = function(target, mob, skill)
