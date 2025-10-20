@@ -17,7 +17,6 @@ local content = Battlefield:new({
     exitNpc          = 'Burning_Circle',
     requiredItems    = { xi.item.MOON_ORB, wearMessage = horlaisID.text.A_CRACK_HAS_FORMED, wornMessage = horlaisID.text.ORB_IS_CRACKED },
 
-    experimental = true,
 })
 
 content:addEssentialMobs({ 'Orcish_Onager' })
