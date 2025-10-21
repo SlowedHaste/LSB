@@ -28,8 +28,8 @@ entity.onMobInitialize = function(mob)
 end
 
 entity.onMobSpawn = function(mob)
-        mob:setMobMod(xi.mod.UFASTCAST, 50)
-        mob:setMod(xi.mobMod.RUN_SPEED_MULT, 200)
+    mob:setMobMod(xi.mod.UFASTCAST, 50)
+    mob:setMod(xi.mobMod.RUN_SPEED_MULT, 200)
     mob:setMod(xi.mod.BLACK_MAGIC_RECAST, 50)
     mob:setMod(xi.mobMod.NO_STANDBACK, 1)
 end
