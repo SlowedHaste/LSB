@@ -1198,24 +1198,24 @@ INSERT INTO `mob_spawn_points` VALUES (16801814,0,'Bearclaw_Leveret','Bearclaw L
 INSERT INTO `mob_spawn_points` VALUES (16801815,0,'Bearclaw_Leveret','Bearclaw Leveret',3,-620.835,-0.322,164.710,200);
 
 -- When Hell Freezes Over
-INSERT INTO `mob_spawn_points` VALUES (16801818,0,'Snow_Devil','Snow Devil',4,-462.692,0.250,880.938,91);
-INSERT INTO `mob_spawn_points` VALUES (16801819,0,'Snow_Devil','Snow Devil',4,-453.162,-0.507,830.879,28);
-INSERT INTO `mob_spawn_points` VALUES (16801820,0,'Snow_Devil','Snow Devil',4,-435.474,-0.752,834.031,249);
-INSERT INTO `mob_spawn_points` VALUES (16801821,0,'Snow_Devil','Snow Devil',4,-460.852,0.250,882.456,141);
-INSERT INTO `mob_spawn_points` VALUES (16801822,0,'Snow_Devil','Snow Devil',4,-463.816,0.265,887.357,231);
-INSERT INTO `mob_spawn_points` VALUES (16801823,0,'Snow_Devil','Snow Devil',4,-475.098,0.178,891.279,74);
-INSERT INTO `mob_spawn_points` VALUES (16801826,0,'Snow_Devil','Snow Devil',4,-221.810,0.022,476.879,91);
-INSERT INTO `mob_spawn_points` VALUES (16801827,0,'Snow_Devil','Snow Devil',4,-216.136,-0.276,433.651,28);
-INSERT INTO `mob_spawn_points` VALUES (16801828,0,'Snow_Devil','Snow Devil',4,-214.199,-0.365,432.397,249);
-INSERT INTO `mob_spawn_points` VALUES (16801829,0,'Snow_Devil','Snow Devil',4,-219.970,0.022,478.397,141);
-INSERT INTO `mob_spawn_points` VALUES (16801830,0,'Snow_Devil','Snow Devil',4,-218.011,-0.086,472.772,231);
-INSERT INTO `mob_spawn_points` VALUES (16801831,0,'Snow_Devil','Snow Devil',4,-234.216,-0.050,487.220,74);
-INSERT INTO `mob_spawn_points` VALUES (16801834,0,'Snow_Devil','Snow Devil',4,-622.142,0.001,197.206,91);
-INSERT INTO `mob_spawn_points` VALUES (16801835,0,'Snow_Devil','Snow Devil',4,-612.612,-0.756,147.147,28);
-INSERT INTO `mob_spawn_points` VALUES (16801836,0,'Snow_Devil','Snow Devil',4,-594.924,-1.001,150.299,249);
-INSERT INTO `mob_spawn_points` VALUES (16801837,0,'Snow_Devil','Snow Devil',4,-620.302,0.001,198.724,141);
-INSERT INTO `mob_spawn_points` VALUES (16801838,0,'Snow_Devil','Snow Devil',4,-623.266,0.016,203.625,231);
-INSERT INTO `mob_spawn_points` VALUES (16801839,0,'Snow_Devil','Snow Devil',4,-634.548,-0.071,207.547,74);
+INSERT INTO `mob_spawn_points` VALUES (16801818,0,'Snow_Devil_war','Snow Devil',4,-465.000,0.000,903.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801819,0,'Snow_Devil_war','Snow Devil',4,-460.000,0.000,903.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801820,0,'Snow_Devil_war','Snow Devil',4,-455.000,0.000,903.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801821,0,'Snow_Devil_blm','Snow Devil',9,-465.000,0.000,903.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801822,0,'Snow_Devil_blm','Snow Devil',9,-460.000,0.000,903.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801823,0,'Snow_Devil_blm','Snow Devil',9,-455.000,0.000,903.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801826,0,'Snow_Devil_war','Snow Devil',4,-226.000,0.000,498.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801827,0,'Snow_Devil_war','Snow Devil',4,-221.000,0.000,498.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801828,0,'Snow_Devil_war','Snow Devil',4,-216.000,0.000,498.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801829,0,'Snow_Devil_blm','Snow Devil',9,-226.000,0.000,498.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801830,0,'Snow_Devil_blm','Snow Devil',9,-221.000,0.000,498.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801831,0,'Snow_Devil_blm','Snow Devil',9,-216.000,0.000,498.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801834,0,'Snow_Devil_war','Snow Devil',4,-625.000,0.000,219.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801835,0,'Snow_Devil_war','Snow Devil',4,-620.000,0.000,219.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801836,0,'Snow_Devil_war','Snow Devil',4,-615.000,0.000,219.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801837,0,'Snow_Devil_blm','Snow Devil',9,-625.000,0.000,219.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801838,0,'Snow_Devil_blm','Snow Devil',9,-620.000,0.000,219.000,64);
+INSERT INTO `mob_spawn_points` VALUES (16801839,0,'Snow_Devil_blm','Snow Devil',9,-615.000,0.000,219.000,64);
 
 -- Brothers
 INSERT INTO `mob_spawn_points` VALUES (16801841,0,'Eldertaur','Eldertaur',5,-464.000,0.602,902.000,64);
