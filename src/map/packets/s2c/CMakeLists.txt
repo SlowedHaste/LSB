@@ -92,6 +92,12 @@ set(PACKET_S2C_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/0x053_systemmes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x055_scenarioitem.h
     ${CMAKE_CURRENT_SOURCE_DIR}/0x055_scenarioitem.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x056_mission.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x056_mission.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x056_mission_other.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x056_mission_other.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x056_mission_tvr.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x056_mission_tvr.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x057_weather.h
     ${CMAKE_CURRENT_SOURCE_DIR}/0x057_weather.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x058_assist.h

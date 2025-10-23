@@ -13,7 +13,7 @@ function_names = []
 def extract_function_names():
     # Search in both src/map/lua/ and src/test/lua/ (including nested directories)
     search_dirs = ["src/map/lua/", "src/test/lua/"]
-    
+
     for base_dir in search_dirs:
         for filename in glob.glob(os.path.join(base_dir, "**/*.[ch]*"), recursive=True):
             if os.path.isfile(filename):
@@ -152,7 +152,7 @@ def main():
                         ):
                             filename = filename.replace("\\", "/")
                             print(
-                                f"Could not find function match for {match.group()} ({filename}:{counter}:{match.start() + 1})"
+                                f"{filename}:{counter}:{match.start() + 1}: Could not find function match for {match.group()}"
                             )
 
 

@@ -104,7 +104,6 @@
 #include "packets/char_sync.h"
 #include "packets/entity_update.h"
 #include "packets/objective_utility.h"
-#include "packets/quest_mission_log.h"
 #include "packets/s2c/0x009_message.h"
 #include "packets/s2c/0x017_chat_std.h"
 #include "packets/s2c/0x01b_job_info.h"
@@ -128,6 +127,7 @@
 #include "packets/s2c/0x052_eventucoff.h"
 #include "packets/s2c/0x053_systemmes.h"
 #include "packets/s2c/0x055_scenarioitem.h"
+#include "packets/s2c/0x056_mission.h"
 #include "packets/s2c/0x05a_motionmes.h"
 #include "packets/s2c/0x05b_wpos.h"
 #include "packets/s2c/0x05c_pendingnum.h"
@@ -7784,7 +7784,7 @@ void CLuaBaseEntity::setRankPoints(uint16 rankPoints)
  *  Example : player:addQuest(xi.quest.log_id.BASTOK, xi.quest.id.bastok.LURE_OF_THE_WILDCAT)
  ************************************************************************/
 
-void CLuaBaseEntity::addQuest(uint8 questLogID, uint16 questID)
+void CLuaBaseEntity::addQuest(QuestLog logId, const uint16 questId) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -7794,21 +7794,20 @@ void CLuaBaseEntity::addQuest(uint8 questLogID, uint16 questID)
 
     auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-    if (questLogID < MAX_QUESTAREA && questID < MAX_QUESTID)
+    if (static_cast<uint8_t>(logId) < MAX_QUESTAREA && questId < MAX_QUESTID)
     {
-        uint8 current = PChar->m_questLog[questLogID].current[questID / 8] & (1 << (questID % 8));
+        uint8 current = PChar->m_questLog[static_cast<uint8_t>(logId)].current[questId / 8] & (1 << (questId % 8));
 
         if (current == 0)
         {
-            PChar->m_questLog[questLogID].current[questID / 8] |= (1 << (questID % 8));
-            PChar->pushPacket<CQuestMissionLogPacket>(PChar, questLogID, LOG_QUEST_CURRENT);
-
+            PChar->m_questLog[static_cast<uint8_t>(logId)].current[questId / 8] |= (1 << (questId % 8));
+            charutils::SendPartialQuestLog(PChar, logId, false);
             charutils::SaveQuestsList(PChar);
         }
     }
     else
     {
-        ShowError("Lua::addQuest: questLogID %i or QuestID %i is invalid", questLogID, questID);
+        ShowError("Lua::addQuest: questLogID %i or QuestID %i is invalid", static_cast<uint8_t>(logId), questId);
     }
 }
 
@@ -7818,7 +7817,7 @@ void CLuaBaseEntity::addQuest(uint8 questLogID, uint16 questID)
  *  Notes   : This duplicates delQuest with the above exception
  ************************************************************************/
 
-void CLuaBaseEntity::delCurrentQuest(uint8 questLogID, uint16 questID)
+void CLuaBaseEntity::delCurrentQuest(QuestLog logId, const uint16 questID) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -7828,23 +7827,21 @@ void CLuaBaseEntity::delCurrentQuest(uint8 questLogID, uint16 questID)
 
     auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-    if (questLogID < MAX_QUESTAREA && questID < MAX_QUESTID)
+    if (static_cast<uint8_t>(logId) < MAX_QUESTAREA && questID < MAX_QUESTID)
     {
-        uint8 current = PChar->m_questLog[questLogID].current[questID / 8] & (1 << (questID % 8));
+        const uint8 current = PChar->m_questLog[static_cast<uint8_t>(logId)].current[questID / 8] & (1 << (questID % 8));
 
         if (current != 0)
         {
-            PChar->m_questLog[questLogID].current[questID / 8] &= ~(1 << (questID % 8));
-
-            PChar->pushPacket<CQuestMissionLogPacket>(PChar, questLogID, LOG_QUEST_CURRENT);
-            PChar->pushPacket<CQuestMissionLogPacket>(PChar, questLogID, LOG_QUEST_COMPLETE);
-
+            PChar->m_questLog[static_cast<uint8_t>(logId)].current[questID / 8] &= ~(1 << (questID % 8));
+            charutils::SendPartialQuestLog(PChar, logId, false);
+            charutils::SendPartialQuestLog(PChar, logId, true);
             charutils::SaveQuestsList(PChar);
         }
     }
     else
     {
-        ShowError("Lua::delCurrentQuest: questLogID %i or QuestID %i is invalid", questLogID, questID);
+        ShowError("Lua::delCurrentQuest: questLogID %i or QuestID %i is invalid", static_cast<uint8_t>(logId), questID);
     }
 }
 
@@ -7855,7 +7852,7 @@ void CLuaBaseEntity::delCurrentQuest(uint8 questLogID, uint16 questID)
  *  Notes   : Doesn't delete any player variables associated with quest
  ************************************************************************/
 
-void CLuaBaseEntity::delQuest(uint8 questLogID, uint16 questID)
+void CLuaBaseEntity::delQuest(QuestLog logId, uint16 questID) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -7865,25 +7862,23 @@ void CLuaBaseEntity::delQuest(uint8 questLogID, uint16 questID)
 
     auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-    if (questLogID < MAX_QUESTAREA && questID < MAX_QUESTID)
+    if (static_cast<uint8_t>(logId) < MAX_QUESTAREA && questID < MAX_QUESTID)
     {
-        uint8 current  = PChar->m_questLog[questLogID].current[questID / 8] & (1 << (questID % 8));
-        uint8 complete = PChar->m_questLog[questLogID].complete[questID / 8] & (1 << (questID % 8));
+        uint8 current  = PChar->m_questLog[static_cast<uint8_t>(logId)].current[questID / 8] & (1 << (questID % 8));
+        uint8 complete = PChar->m_questLog[static_cast<uint8_t>(logId)].complete[questID / 8] & (1 << (questID % 8));
 
         if ((current != 0) || (complete != 0))
         {
-            PChar->m_questLog[questLogID].current[questID / 8] &= ~(1 << (questID % 8));
-            PChar->m_questLog[questLogID].complete[questID / 8] &= ~(1 << (questID % 8));
-
-            PChar->pushPacket<CQuestMissionLogPacket>(PChar, questLogID, LOG_QUEST_CURRENT);
-            PChar->pushPacket<CQuestMissionLogPacket>(PChar, questLogID, LOG_QUEST_COMPLETE);
-
+            PChar->m_questLog[static_cast<uint8_t>(logId)].current[questID / 8] &= ~(1 << (questID % 8));
+            PChar->m_questLog[static_cast<uint8_t>(logId)].complete[questID / 8] &= ~(1 << (questID % 8));
+            charutils::SendPartialQuestLog(PChar, logId, false);
+            charutils::SendPartialQuestLog(PChar, logId, true);
             charutils::SaveQuestsList(PChar);
         }
     }
     else
     {
-        ShowError("Lua::delQuest: questLogID %i or QuestID %i is invalid", questLogID, questID);
+        ShowError("Lua::delQuest: questLogID %i or QuestID %i is invalid", static_cast<uint8_t>(logId), questID);
     }
 }
 
@@ -7893,7 +7888,7 @@ void CLuaBaseEntity::delQuest(uint8 questLogID, uint16 questID)
  *  Example : player:getQuestStatus(xi.quest.log_id.WINDURST, xi.quest.id.windurst.MAKING_THE_GRADE)
  ************************************************************************/
 
-uint8 CLuaBaseEntity::getQuestStatus(uint8 questLogID, uint16 questID)
+uint8 CLuaBaseEntity::getQuestStatus(QuestLog logId, uint16 questID) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -7901,17 +7896,17 @@ uint8 CLuaBaseEntity::getQuestStatus(uint8 questLogID, uint16 questID)
         return 0;
     }
 
-    if (questLogID < MAX_QUESTAREA && questID < MAX_QUESTID)
+    if (static_cast<uint8_t>(logId) < MAX_QUESTAREA && questID < MAX_QUESTID)
     {
-        auto* PChar    = static_cast<CCharEntity*>(m_PBaseEntity);
-        uint8 current  = PChar->m_questLog[questLogID].current[questID / 8] & (1 << (questID % 8));
-        uint8 complete = PChar->m_questLog[questLogID].complete[questID / 8] & (1 << (questID % 8));
+        const auto* PChar    = static_cast<CCharEntity*>(m_PBaseEntity);
+        const uint8 current  = PChar->m_questLog[static_cast<uint8_t>(logId)].current[questID / 8] & (1 << (questID % 8));
+        const uint8 complete = PChar->m_questLog[static_cast<uint8_t>(logId)].complete[questID / 8] & (1 << (questID % 8));
 
         return (complete != 0 ? 2 : (current != 0 ? 1 : 0));
     }
     else
     {
-        ShowError("Lua::getQuestStatus: questLogID %i or QuestID %i is invalid", questLogID, questID);
+        ShowError("Lua::getQuestStatus: questLogID %i or QuestID %i is invalid", static_cast<uint8_t>(logId), questID);
         return 0;
     }
 }
@@ -7922,7 +7917,7 @@ uint8 CLuaBaseEntity::getQuestStatus(uint8 questLogID, uint16 questID)
  *  Example : if (player:hasCompletedQuest(xi.quest.log_id.JEUNO, xi.quest.id.jeuno.BEYOND_INFINITY)) then
  ************************************************************************/
 
-bool CLuaBaseEntity::hasCompletedQuest(uint8 questLogID, uint16 questID)
+bool CLuaBaseEntity::hasCompletedQuest(QuestLog logId, uint16 questID) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -7930,14 +7925,14 @@ bool CLuaBaseEntity::hasCompletedQuest(uint8 questLogID, uint16 questID)
         return false;
     }
 
-    if (questLogID < MAX_QUESTAREA && questID < MAX_QUESTID)
+    if (static_cast<uint8_t>(logId) < MAX_QUESTAREA && questID < MAX_QUESTID)
     {
-        uint8 complete = static_cast<CCharEntity*>(m_PBaseEntity)->m_questLog[questLogID].complete[questID / 8] & (1 << (questID % 8));
+        const uint8 complete = static_cast<CCharEntity*>(m_PBaseEntity)->m_questLog[static_cast<uint8_t>(logId)].complete[questID / 8] & (1 << (questID % 8));
 
         return complete != 0;
     }
 
-    ShowError("Lua::hasCompletedQuest: questLogID %i or QuestID %i is invalid", questLogID, questID);
+    ShowError("Lua::hasCompletedQuest: questLogID %i or QuestID %i is invalid", static_cast<uint8_t>(logId), questID);
     return false;
 }
 
@@ -7948,7 +7943,7 @@ bool CLuaBaseEntity::hasCompletedQuest(uint8 questLogID, uint16 questID)
  *  Notes   :
  ************************************************************************/
 
-void CLuaBaseEntity::completeQuest(uint8 questLogID, uint16 questID)
+void CLuaBaseEntity::completeQuest(QuestLog logId, uint16 questID) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -7958,24 +7953,23 @@ void CLuaBaseEntity::completeQuest(uint8 questLogID, uint16 questID)
 
     auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-    if (questLogID < MAX_QUESTAREA && questID < MAX_QUESTID)
+    if (static_cast<uint8_t>(logId) < MAX_QUESTAREA && questID < MAX_QUESTID)
     {
-        uint8 complete = PChar->m_questLog[questLogID].complete[questID / 8] & (1 << (questID % 8));
+        uint8 complete = PChar->m_questLog[static_cast<uint8_t>(logId)].complete[questID / 8] & (1 << (questID % 8));
 
         if (!complete)
         {
-            PChar->m_questLog[questLogID].current[questID / 8] &= ~(1 << (questID % 8));
-            PChar->m_questLog[questLogID].complete[questID / 8] |= (1 << (questID % 8));
-
-            PChar->pushPacket<CQuestMissionLogPacket>(PChar, questLogID, LOG_QUEST_CURRENT);
-            PChar->pushPacket<CQuestMissionLogPacket>(PChar, questLogID, LOG_QUEST_COMPLETE);
+            PChar->m_questLog[static_cast<uint8_t>(logId)].current[questID / 8] &= ~(1 << (questID % 8));
+            PChar->m_questLog[static_cast<uint8_t>(logId)].complete[questID / 8] |= (1 << (questID % 8));
+            charutils::SendPartialQuestLog(PChar, logId, false);
+            charutils::SendPartialQuestLog(PChar, logId, true);
             charutils::SaveQuestsList(PChar);
             roeutils::event(ROE_QUEST_COMPLETE, PChar, RoeDatagramList{});
         }
     }
     else
     {
-        ShowError("Lua::completeQuest: questLogID %i or QuestID %i is invalid", questLogID, questID);
+        ShowError("Lua::completeQuest: questLogID %i or QuestID %i is invalid", static_cast<uint8_t>(logId), questID);
     }
 }
 
@@ -7986,30 +7980,29 @@ void CLuaBaseEntity::completeQuest(uint8 questLogID, uint16 questID)
  *  Notes   : This function no longer accepts tables!
  ************************************************************************/
 
-void CLuaBaseEntity::addMission(uint8 missionLogID, uint16 missionID)
+void CLuaBaseEntity::addMission(MissionLog logId, uint16 missionID) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         return;
     }
 
-    if (missionLogID < MAX_MISSIONAREA && missionID < MAX_MISSIONID)
+    if (static_cast<uint8_t>(logId) < MAX_MISSIONAREA && missionID < MAX_MISSIONID)
     {
         auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-        if (PChar->m_missionLog[missionLogID].current != (missionLogID > 2 ? 0 : std::numeric_limits<uint16>::max()))
+        if (PChar->m_missionLog[static_cast<uint8_t>(logId)].current != (static_cast<uint8_t>(logId) > 2 ? 0 : std::numeric_limits<uint16>::max()))
         {
-            ShowWarning("Lua::addMission: player has a current mission (%d)", missionLogID);
+            ShowWarning("Lua::addMission: player has a current mission (%d)", static_cast<uint8_t>(logId));
         }
 
-        PChar->m_missionLog[missionLogID].current = missionID;
-        PChar->pushPacket<CQuestMissionLogPacket>(PChar, missionLogID, LOG_MISSION_CURRENT);
-
+        PChar->m_missionLog[static_cast<uint8_t>(logId)].current = missionID;
+        charutils::SendPartialMissionLog(PChar, logId, false);
         charutils::SaveMissionsList(PChar);
     }
     else
     {
-        ShowError("Lua::addMission: missionLogID %i or Mission %i is invalid", missionLogID, missionID);
+        ShowError("Lua::addMission: missionLogID %i or Mission %i is invalid", static_cast<uint8_t>(logId), missionID);
     }
 }
 
@@ -8021,7 +8014,7 @@ void CLuaBaseEntity::addMission(uint8 missionLogID, uint16 missionID)
  *          : This function no longer accepts tables!
  ************************************************************************/
 
-void CLuaBaseEntity::delMission(uint8 missionLogID, uint16 missionID)
+void CLuaBaseEntity::delMission(MissionLog logId, uint16 missionID) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -8029,28 +8022,28 @@ void CLuaBaseEntity::delMission(uint8 missionLogID, uint16 missionID)
         return;
     }
 
-    if (missionLogID < MAX_MISSIONAREA && missionID < MAX_MISSIONID)
+    if (static_cast<uint8_t>(logId) < MAX_MISSIONAREA && missionID < MAX_MISSIONID)
     {
         auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-        uint16 current  = PChar->m_missionLog[missionLogID].current;
-        bool   complete = (missionLogID == MISSION_COP || missionID >= 64) ? false : PChar->m_missionLog[missionLogID].complete[missionID];
+        const uint16 current  = PChar->m_missionLog[static_cast<uint8_t>(logId)].current;
+        const bool   complete = (logId == MissionLog::CoP || missionID >= 64) ? false : PChar->m_missionLog[static_cast<uint8_t>(logId)].complete[missionID];
 
         if (current == missionID)
         {
-            PChar->m_missionLog[missionLogID].current = missionLogID > 2 ? 0 : -1;
-            PChar->pushPacket<CQuestMissionLogPacket>(PChar, missionLogID, LOG_MISSION_CURRENT);
+            PChar->m_missionLog[static_cast<uint8_t>(logId)].current = static_cast<uint8_t>(logId) > 2 ? 0 : -1;
+            charutils::SendPartialMissionLog(PChar, logId, false);
         }
         if (complete)
         {
-            PChar->m_missionLog[missionLogID].complete[missionID] = false;
-            PChar->pushPacket<CQuestMissionLogPacket>(PChar, missionLogID, LOG_MISSION_COMPLETE);
+            PChar->m_missionLog[static_cast<uint8_t>(logId)].complete[missionID] = false;
+            charutils::SendPartialMissionLog(PChar, logId, true);
         }
         charutils::SaveMissionsList(PChar);
     }
     else
     {
-        ShowError("Lua::delMission: missionLogID %i or Mission %i is invalid", missionLogID, missionID);
+        ShowError("Lua::delMission: missionLogID %i or Mission %i is invalid", static_cast<uint8_t>(logId), missionID);
     }
 }
 
@@ -8061,7 +8054,7 @@ void CLuaBaseEntity::delMission(uint8 missionLogID, uint16 missionID)
  *  Notes   : Specify the area to pass a Lua table object
  ************************************************************************/
 
-uint16 CLuaBaseEntity::getCurrentMission(sol::object const& missionLogObj)
+uint16 CLuaBaseEntity::getCurrentMission(sol::object const& missionLogObj) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -8106,7 +8099,7 @@ uint16 CLuaBaseEntity::getCurrentMission(sol::object const& missionLogObj)
  *  Notes   :
  ************************************************************************/
 
-bool CLuaBaseEntity::hasCompletedMission(uint8 missionLogID, uint16 missionID)
+bool CLuaBaseEntity::hasCompletedMission(MissionLog logId, const uint16 missionID) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -8116,15 +8109,15 @@ bool CLuaBaseEntity::hasCompletedMission(uint8 missionLogID, uint16 missionID)
 
     bool complete = false;
 
-    if (missionLogID < MAX_MISSIONAREA && missionID < MAX_MISSIONID)
+    if (static_cast<uint8_t>(logId) < MAX_MISSIONAREA && missionID < MAX_MISSIONID)
     {
-        auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
-        complete    = (missionLogID == MISSION_COP || missionID >= 64) ? missionID < PChar->m_missionLog[missionLogID].current
-                                                                       : PChar->m_missionLog[missionLogID].complete[missionID];
+        const auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
+        complete          = (logId == MissionLog::CoP || missionID >= 64) ? missionID < PChar->m_missionLog[static_cast<uint8_t>(logId)].current
+                                                                          : PChar->m_missionLog[static_cast<uint8_t>(logId)].complete[missionID];
     }
     else
     {
-        ShowError("Lua::hasCompletedMission: missionLogID %i or Mission %i is invalid", missionLogID, missionID);
+        ShowError("Lua::hasCompletedMission: missionLogID %i or Mission %i is invalid", static_cast<uint8_t>(logId), missionID);
     }
 
     return complete;
@@ -8137,7 +8130,7 @@ bool CLuaBaseEntity::hasCompletedMission(uint8 missionLogID, uint16 missionID)
  *  Notes   :
  ************************************************************************/
 
-void CLuaBaseEntity::completeMission(uint8 missionLogID, uint16 missionID)
+void CLuaBaseEntity::completeMission(MissionLog logId, const uint16 missionID) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -8145,31 +8138,31 @@ void CLuaBaseEntity::completeMission(uint8 missionLogID, uint16 missionID)
         return;
     }
 
-    if (missionLogID < MAX_MISSIONAREA && missionID < MAX_MISSIONID)
+    if (static_cast<uint8_t>(logId) < MAX_MISSIONAREA && missionID < MAX_MISSIONID)
     {
         auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-        if (PChar->m_missionLog[missionLogID].current != missionID)
+        if (PChar->m_missionLog[static_cast<uint8_t>(logId)].current != missionID)
         {
-            ShowWarning("Lua::completeMission: can't complete non current mission", missionLogID);
+            ShowWarning("Lua::completeMission: can't complete non current mission", static_cast<uint8_t>(logId));
         }
         else
         {
-            PChar->m_missionLog[missionLogID].current = missionLogID > 2 ? 0 : std::numeric_limits<uint16>::max();
-            if ((missionLogID != MISSION_COP) && (missionID < 64))
+            PChar->m_missionLog[static_cast<uint8_t>(logId)].current = static_cast<uint8_t>(logId) > 2 ? 0 : std::numeric_limits<uint16>::max();
+            if (logId != MissionLog::CoP && (missionID < 64))
             {
-                PChar->m_missionLog[missionLogID].complete[missionID] = true;
-                PChar->pushPacket<CQuestMissionLogPacket>(PChar, missionLogID, LOG_MISSION_COMPLETE);
+                PChar->m_missionLog[static_cast<uint8_t>(logId)].complete[missionID] = true;
+                charutils::SendPartialMissionLog(PChar, logId, true);
             }
-            PChar->pushPacket<CQuestMissionLogPacket>(PChar, missionLogID, LOG_MISSION_CURRENT);
 
+            charutils::SendPartialMissionLog(PChar, logId, false);
             charutils::SaveMissionsList(PChar);
             roeutils::event(ROE_MISSION_COMPLETE, PChar, RoeDatagramList{});
         }
     }
     else
     {
-        ShowError("Lua::completeMission: missionLogID %i or Mission %i is invalid", missionLogID, missionID);
+        ShowError("Lua::completeMission: missionLogID %i or Mission %i is invalid", static_cast<uint8_t>(logId), missionID);
     }
 }
 
@@ -8181,7 +8174,7 @@ void CLuaBaseEntity::completeMission(uint8 missionLogID, uint16 missionID)
  *            If optional index is used, value must be between 0-15.
  ************************************************************************/
 
-void CLuaBaseEntity::setMissionStatus(uint8 missionLogID, sol::object const& arg2Obj, sol::object const& arg3Obj)
+void CLuaBaseEntity::setMissionStatus(MissionLog logId, sol::object const& arg2Obj, sol::object const& arg3Obj) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -8189,42 +8182,42 @@ void CLuaBaseEntity::setMissionStatus(uint8 missionLogID, sol::object const& arg
         return;
     }
 
-    CCharEntity* PChar = (CCharEntity*)m_PBaseEntity;
+    auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-    if (missionLogID >= MAX_MISSIONAREA)
+    if (static_cast<uint8_t>(logId) >= MAX_MISSIONAREA)
     {
-        ShowError("Lua::setMissionStatus: missionLogID %i is invalid", missionLogID);
+        ShowError("Lua::setMissionStatus: missionLogID %i is invalid", static_cast<uint8_t>(logId));
         return;
     }
 
     if (arg3Obj.is<uint8>())
     {
-        uint8 missionStatusPos = arg3Obj.as<uint8>();
+        const uint8 missionStatusPos = arg3Obj.as<uint8>();
         if (missionStatusPos > 7)
         {
             ShowError("Lua::setMissionStatus: position %i is invalid", missionStatusPos);
             return;
         }
-        uint8 missionStatusValue = arg2Obj.as<uint8>();
+        const uint8 missionStatusValue = arg2Obj.as<uint8>();
         if (missionStatusValue > 0xF)
         {
             ShowError("Lua::setMissionStatus: value %i is invalid", missionStatusValue);
             return;
         }
-        uint32 missionStatus = (PChar->m_missionLog[missionLogID].statusUpper << 16) | PChar->m_missionLog[missionLogID].statusLower;
-        uint32 mask          = ~(0xF << (4 * missionStatusPos));
+        uint32       missionStatus = (PChar->m_missionLog[static_cast<uint8_t>(logId)].statusUpper << 16) | PChar->m_missionLog[static_cast<uint8_t>(logId)].statusLower;
+        const uint32 mask          = ~(0xF << (4 * missionStatusPos));
 
         missionStatus &= mask;
         missionStatus |= missionStatusValue << (4 * missionStatusPos);
-        PChar->m_missionLog[missionLogID].statusLower = missionStatus;
-        PChar->m_missionLog[missionLogID].statusUpper = missionStatus >> 16;
-        PChar->pushPacket<CQuestMissionLogPacket>(PChar, missionLogID, LOG_MISSION_CURRENT);
+        PChar->m_missionLog[static_cast<uint8_t>(logId)].statusLower = missionStatus;
+        PChar->m_missionLog[static_cast<uint8_t>(logId)].statusUpper = missionStatus >> 16;
+        charutils::SendPartialMissionLog(PChar, logId, false);
     }
     else
     {
-        uint32 missionStatusValue                     = arg2Obj.as<uint32>();
-        PChar->m_missionLog[missionLogID].statusLower = missionStatusValue;
-        PChar->m_missionLog[missionLogID].statusUpper = missionStatusValue >> 16;
+        const uint32 missionStatusValue                              = arg2Obj.as<uint32>();
+        PChar->m_missionLog[static_cast<uint8_t>(logId)].statusLower = missionStatusValue;
+        PChar->m_missionLog[static_cast<uint8_t>(logId)].statusUpper = missionStatusValue >> 16;
     }
 
     charutils::SaveMissionsList(PChar);
@@ -8237,7 +8230,7 @@ void CLuaBaseEntity::setMissionStatus(uint8 missionLogID, sol::object const& arg
  *  Notes   : getMissionStatus(log id[,index 0-7])
  ************************************************************************/
 
-uint32 CLuaBaseEntity::getMissionStatus(uint8 missionLogID, sol::object const& missionStatusPosObj)
+uint32 CLuaBaseEntity::getMissionStatus(MissionLog logId, sol::object const& missionStatusPosObj) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -8245,10 +8238,10 @@ uint32 CLuaBaseEntity::getMissionStatus(uint8 missionLogID, sol::object const& m
         return 0;
     }
 
-    CCharEntity* PChar = (CCharEntity*)m_PBaseEntity;
-    if (missionLogID < MAX_MISSIONAREA)
+    const auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
+    if (static_cast<uint8_t>(logId) < MAX_MISSIONAREA)
     {
-        uint32 missionStatus = (PChar->m_missionLog[missionLogID].statusUpper << 16) | PChar->m_missionLog[missionLogID].statusLower;
+        uint32 missionStatus = (PChar->m_missionLog[static_cast<uint8_t>(logId)].statusUpper << 16) | PChar->m_missionLog[static_cast<uint8_t>(logId)].statusLower;
         if (missionStatusPosObj.is<uint8>())
         {
             uint8 missionStatusPos = missionStatusPosObj.as<uint8>();
@@ -8265,7 +8258,7 @@ uint32 CLuaBaseEntity::getMissionStatus(uint8 missionLogID, sol::object const& m
         }
     }
 
-    ShowError("Lua::getMissionStatus: missionLogID %i is invalid", missionLogID);
+    ShowError("Lua::getMissionStatus: missionLogID %i is invalid", static_cast<uint8_t>(logId));
     return 0;
 }
 
@@ -8702,7 +8695,7 @@ bool CLuaBaseEntity::hasCompletedUniqueEvent(uint16 uniqueEventId)
  *  Notes   : See scripts/zones/Aht_Urhgan_Whitegate/npcs/Famad.lua
  ************************************************************************/
 
-void CLuaBaseEntity::addAssault(uint8 missionID)
+void CLuaBaseEntity::addAssault(const uint8 missionID) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -8718,8 +8711,7 @@ void CLuaBaseEntity::addAssault(uint8 missionID)
     }
 
     PChar->m_assaultLog.current = missionID;
-    PChar->pushPacket<CQuestMissionLogPacket>(PChar, MISSION_ASSAULT, LOG_MISSION_CURRENT);
-
+    charutils::SendPartialMissionLog(PChar, MissionLog::Assault, false);
     charutils::SaveMissionsList(PChar);
 }
 
@@ -8743,7 +8735,7 @@ void CLuaBaseEntity::delAssault(uint8 missionID)
     if (current == missionID)
     {
         PChar->m_assaultLog.current = 0;
-        PChar->pushPacket<CQuestMissionLogPacket>(PChar, MISSION_ASSAULT, LOG_MISSION_CURRENT);
+        charutils::SendPartialMissionLog(PChar, MissionLog::Assault, false);
     }
 
     charutils::SaveMissionsList(PChar);
@@ -8793,7 +8785,7 @@ bool CLuaBaseEntity::hasCompletedAssault(uint8 missionID)
  *  Notes   : See scripts/zones/Aht_Urhgan_Whitegate/npcs/Rytaal.lua
  ************************************************************************/
 
-void CLuaBaseEntity::completeAssault(uint8 missionID)
+void CLuaBaseEntity::completeAssault(const uint8 missionID) const
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -8810,9 +8802,8 @@ void CLuaBaseEntity::completeAssault(uint8 missionID)
 
     PChar->m_assaultLog.current             = 0;
     PChar->m_assaultLog.complete[missionID] = true;
-    PChar->pushPacket<CQuestMissionLogPacket>(PChar, MISSION_ASSAULT, LOG_MISSION_CURRENT);
-    PChar->pushPacket<CQuestMissionLogPacket>(PChar, MISSION_ASSAULT, LOG_MISSION_COMPLETE);
-
+    charutils::SendPartialMissionLog(PChar, MissionLog::Assault, false);
+    charutils::SendPartialMissionLog(PChar, MissionLog::Assault, true);
     charutils::SaveMissionsList(PChar);
 }
 
