@@ -32,6 +32,7 @@ xi.mobSkill =
     QUEASYSHROOM_1           =  310,
     NUMBSHROOM_1             =  311,
     SHAKESHROOM_1            =  312,
+    COUNTERSPORE             =  313,
 
     SILENCE_GAS_1            =  314,
     DARK_SPORE_1             =  315,
@@ -161,10 +162,6 @@ xi.mobSkill =
     TRION_RED_LOTUS_BLADE    =  968, -- Trion Red Lotus Blade
     TRION_FLAT_BLADE         =  969, -- Trion Flat Blade
     TRION_SAVAGE_BLADE       =  970, -- Trion Savage Blade
-
-    VOLKER_RED_LOTUS_BLADE   =  973, -- Volker Red Lotus Blade
-    VOLKER_SPIRITS_WITHIN    =  974, -- Volker Spirits Within
-    VOLKER_VORPAL_BLADE      =  975, -- Volker Vorpal Blade
 
     AJIDO_WARP_OUT           =  977, -- Windurst 9-2 Ajido teleport
     AJIDO_WARP_IN            =  978, -- Windurst 9-2 Ajido teleport

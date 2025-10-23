@@ -11,7 +11,6 @@ import pathlib
 
 import platform
 
-
 # Pre-flight sanity checks
 def preflight_exit():
     # If double clicked on Windows: pause with an input so the user can read the error...
@@ -487,15 +486,7 @@ def import_file(file):
         )
         return
     print("Importing " + file)
-    query = f"""
-    SET autocommit=0;
-    SET unique_checks=0;
-    SET foreign_key_checks=0;
-    SOURCE {file};
-    SET unique_checks=1;
-    SET foreign_key_checks=1;
-    COMMIT;
-    """
+    query = f"SET autocommit=0; SET unique_checks=0; SET foreign_key_checks=0; SOURCE {file}; SET unique_checks=1; SET foreign_key_checks=1; COMMIT;"
     _ = db_query(query)
 
 
@@ -959,7 +950,7 @@ def offload_to_auction_house_history():
 
 
 def announce_menu():
-    from tools.announce import send_server_message
+    from announce import send_server_message
 
     message = input("What message would you like to send to the whole server?\n> ")
     if (
@@ -1041,7 +1032,6 @@ def configure_multi_process_by_modulus_3():
 def configure_multi_process_by_modulus_7():
     configure_multi_process_by_modulus(7)
 
-
 def launch_process_in_background(process_params):
     # fmt: off
 
@@ -1065,7 +1055,6 @@ def launch_process_in_background(process_params):
 
     # fmt: on
 
-
 def launch_using_zone_settings():
     result = db_query("SELECT DISTINCT zoneip FROM xidb.zone_settings;")
 
@@ -1080,7 +1069,7 @@ def launch_using_zone_settings():
     ports = result.stdout.split("\n")[1:-1]
 
     # Strip out any '0' entries from ports
-    ports = [port for port in ports if port.strip() != "0"]
+    ports = [port for port in ports if port.strip() != '0']
 
     print(f"ZoneIP: {zoneip}, Ports: {ports}\n")
 
@@ -1090,38 +1079,19 @@ def launch_using_zone_settings():
     xi_world_executable = from_server_path(f"xi_world{exe}")
 
     print(f"Launching {xi_connect_executable} --log log/connect-server.log")
-    launch_process_in_background(
-        [xi_connect_executable, "--log", "log/connect-server.log"]
-    )
+    launch_process_in_background([xi_connect_executable, "--log", "log/connect-server.log"])
 
     print(f"Launching {xi_search_executable} --log log/search-server.log")
-    launch_process_in_background(
-        [xi_search_executable, "--log", f"log/search-server.log"]
-    )
+    launch_process_in_background([xi_search_executable, "--log", f"log/search-server.log"])
 
     print(f"Launching {xi_world_executable} --log log/world-server.log")
-    launch_process_in_background(
-        [xi_world_executable, "--log", f"log/world-server.log"]
-    )
+    launch_process_in_background([xi_world_executable, "--log", f"log/world-server.log"])
 
     time.sleep(1)
 
     for port in ports:
-        print(
-            f"Launching {xi_map_executable} --log log/map-server-{port}.log --ip {zoneip} --port {port}"
-        )
-        launch_process_in_background(
-            [
-                xi_map_executable,
-                "--log",
-                f"log/map-server-{port}.log",
-                "--ip",
-                zoneip,
-                "--port",
-                port,
-            ]
-        )
-
+        print(f"Launching {xi_map_executable} --log log/map-server-{port}.log --ip {zoneip} --port {port}")
+        launch_process_in_background([xi_map_executable, "--log", f"log/map-server-{port}.log", "--ip", zoneip, "--port", port])
 
 def update_submodules():
     # fmt: off
@@ -1309,6 +1279,7 @@ def main():
         if not os.path.exists(mysql_bin + "mysql" + exe):
             adjust_mysql_bin()
             write_configs()
+        fetch_versions()
         # CLI args
         if len(sys.argv) > 1:
             arg1 = str(sys.argv[1])
@@ -1320,12 +1291,10 @@ def main():
                 return
             elif "migrate" == arg1:
                 if connect() != False:
-                    fetch_versions()
                     run_all_migrations(True)
                     close()
                 return
             elif "update" == arg1:
-                fetch_versions()
                 full_update = False
                 if len(sys.argv) > 2 and str(sys.argv[2]) == "full":
                     full_update = True
@@ -1361,7 +1330,8 @@ def main():
                         text=True,
                     )
                     fetch_errors(query, result)
-                    fetch_versions()
+                    setup_db()
+                else:
                     setup_db()
                 return
             elif "dump" == arg1:
@@ -1372,7 +1342,6 @@ def main():
                 return
         # Main loop
         print(colorama.ansi.clear_screen())
-        fetch_versions()
         connect()
         while cur:
             colorama.init(autoreset=True)
