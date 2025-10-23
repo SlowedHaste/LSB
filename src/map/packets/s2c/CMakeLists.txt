@@ -4,6 +4,8 @@ set(PACKET_S2C_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/0x008_enterzone.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x009_message.h
     ${CMAKE_CURRENT_SOURCE_DIR}/0x009_message.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x00a_login.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x00a_login.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x00b_logout.h
     ${CMAKE_CURRENT_SOURCE_DIR}/0x00b_logout.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x017_chat_std.h
@@ -172,6 +174,10 @@ set(PACKET_S2C_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/0x0c8_group_tbl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x0fa_myroom_operation.h
     ${CMAKE_CURRENT_SOURCE_DIR}/0x0fa_myroom_operation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x0c9_equip_inspect_equipment.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x0c9_equip_inspect_equipment.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x0c9_equip_inspect_general.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x0c9_equip_inspect_general.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x0ca_inspect_message.h
     ${CMAKE_CURRENT_SOURCE_DIR}/0x0ca_inspect_message.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x0cc_linkshell_message.h

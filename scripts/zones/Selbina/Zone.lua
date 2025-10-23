@@ -6,15 +6,14 @@ local ID = zones[xi.zone.SELBINA]
 ---@type TZone
 local zoneObject = {}
 
-local piratesChance = 10 -- 10% chance to zone from mhaura/selbina into pirates encounter
-
 zoneObject.onInitialize = function(zone)
     xi.server.setExplorerMoogles(ID.npc.EXPLORER_MOOGLE)
     InitializeFishingContestSystem()
 end
 
 zoneObject.onGameHour = function(zone)
-    zone:setLocalVar('piratesVoyageRng', math.random(1, 100))
+    local destinationId = math.random(1, 100) <= 10 and xi.zone.SHIP_BOUND_FOR_MHAURA_PIRATES or xi.zone.SHIP_BOUND_FOR_MHAURA
+    zone:setLocalVar('[Pirate]Zone', destinationId)
 end
 
 zoneObject.onZoneTick = function(zone)
@@ -60,12 +59,13 @@ end
 zoneObject.onTransportEvent = function(player, prevZoneId, transportId)
     -- TODO don't double fire transport events (a ship "arrives" from normal and pirates zones at the same time and triggers a transport event)
     if not player:isInEvent() then
-        if player:hasKeyItem(xi.ki.FERRY_TICKET) then
-            player:startEvent(200)
-        else
-            -- TODO find rejection event, as this method doesn't cleanly boot from the boat and if you were inside the ship, the game client keeps it rendered
-            player:setPos(32.500, -2.500, -45.500, 192)
-        end
+        return
+    end
+
+    if player:hasKeyItem(xi.ki.FERRY_TICKET) then
+        player:startEvent(200)
+    else
+        player:startEvent(204)
     end
 end
 
@@ -73,13 +73,13 @@ zoneObject.onEventUpdate = function(player, csid, option, npc)
 end
 
 zoneObject.onEventFinish = function(player, csid, option, npc)
+    -- Transport event.
     if csid == 200 then
-        local currZone = player:getZone()
-        if currZone and currZone:getLocalVar('piratesVoyageRng') <= piratesChance then
-            player:setPos(0, 0, 0, 0, xi.zone.SHIP_BOUND_FOR_MHAURA_PIRATES)
-        else
-            player:setPos(0, 0, 0, 0, xi.zone.SHIP_BOUND_FOR_MHAURA)
-        end
+        local zone          = player:getZone()
+        local destinationId = zone and zone:getLocalVar('[Pirate]Zone') or xi.zone.SHIP_BOUND_FOR_MHAURA
+        player:setPos(0, 0, 0, 0, destinationId)
+
+    -- Quest logic. TODO: Convert quest to interaction.
     elseif
         csid == 1101 and
         npcUtil.completeQuest(player, xi.questLog.OUTLANDS, xi.quest.id.outlands.I_LL_TAKE_THE_BIG_BOX, { item = 14226, fameArea = xi.fameArea.NORG, var = { 'Enagakure_Killed', 'illTakeTheBigBoxCS' } })

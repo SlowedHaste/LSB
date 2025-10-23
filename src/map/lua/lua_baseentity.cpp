@@ -10818,7 +10818,7 @@ void CLuaBaseEntity::delLearnedAbility(uint16 abilityID)
  *  Notes   : Optional config table accepts bools for: silentLog, saveToDB, sendUpdate.
  ************************************************************************/
 
-void CLuaBaseEntity::addSpell(uint16 spellID, sol::object const& arg0)
+void CLuaBaseEntity::addSpell(uint16 spellID, const sol::optional<sol::table>& paramTable)
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -10826,34 +10826,24 @@ void CLuaBaseEntity::addSpell(uint16 spellID, sol::object const& arg0)
         return;
     }
 
-    auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
-
-    bool silentLog  = false;
-    bool saveToDB   = true;
-    bool sendUpdate = true;
-
-    if (arg0.get_type() == sol::type::table)
+    const auto coalesceParam = [](const sol::optional<sol::table>& maybeParamTable, const std::string& key, bool defaultValue) -> bool
     {
-        for (const auto& kv : arg0.as<sol::table>())
+        if (maybeParamTable.has_value())
         {
-            if (kv.first.get_type() == sol::type::string && kv.second.get_type() == sol::type::boolean)
+            const auto& paramTable = *maybeParamTable;
+            if (paramTable[key].valid())
             {
-                auto keyName = kv.first.as<std::string>();
-                if (keyName == "silentLog")
-                {
-                    silentLog = kv.second.as<bool>();
-                }
-                else if (keyName == "saveToDB")
-                {
-                    saveToDB = kv.second.as<bool>();
-                }
-                else if (keyName == "sendUpdate")
-                {
-                    sendUpdate = kv.second.as<bool>();
-                }
+                return paramTable[key].get_or<bool>(defaultValue);
             }
         }
-    }
+        return defaultValue;
+    };
+
+    auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
+
+    const bool silentLog  = coalesceParam(paramTable, "silentLog", /*defaultValue=*/false);
+    const bool saveToDB   = coalesceParam(paramTable, "saveToDB", /*defaultValue=*/true);
+    const bool sendUpdate = coalesceParam(paramTable, "sendUpdate", /*defaultValue=*/true);
 
     // Add spell to player's active spell list
     if (charutils::addSpell(PChar, spellID))
@@ -10933,7 +10923,7 @@ uint32 CLuaBaseEntity::canLearnSpell(uint16 spellID)
  *  Notes   : Optional config table accepts bools for: saveToDB, sendUpdate.
  ************************************************************************/
 
-void CLuaBaseEntity::delSpell(uint16 spellID, sol::object const& arg0)
+void CLuaBaseEntity::delSpell(uint16 spellID, const sol::optional<sol::table>& paramTable)
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -10941,29 +10931,23 @@ void CLuaBaseEntity::delSpell(uint16 spellID, sol::object const& arg0)
         return;
     }
 
-    auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
-
-    bool saveToDB   = true;
-    bool sendUpdate = true;
-
-    if (arg0.get_type() == sol::type::table)
+    const auto coalesceParam = [](const sol::optional<sol::table>& maybeParamTable, const std::string& key, bool defaultValue) -> bool
     {
-        for (const auto& kv : arg0.as<sol::table>())
+        if (maybeParamTable.has_value())
         {
-            if (kv.first.get_type() == sol::type::string && kv.second.get_type() == sol::type::boolean)
+            const auto& paramTable = *maybeParamTable;
+            if (paramTable[key].valid())
             {
-                auto keyName = kv.first.as<std::string>();
-                if (keyName == "saveToDB")
-                {
-                    saveToDB = kv.second.as<bool>();
-                }
-                else if (keyName == "sendUpdate")
-                {
-                    sendUpdate = kv.second.as<bool>();
-                }
+                return paramTable[key].get_or<bool>(defaultValue);
             }
         }
-    }
+        return defaultValue;
+    };
+
+    auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
+
+    const bool saveToDB   = coalesceParam(paramTable, "saveToDB", /*defaultValue=*/true);
+    const bool sendUpdate = coalesceParam(paramTable, "sendUpdate", /*defaultValue=*/true);
 
     // Remove spell from player's active spell list
     if (charutils::delSpell(PChar, spellID))
