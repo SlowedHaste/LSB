@@ -163,8 +163,8 @@ src/common/stamp-h1
 
 navmeshes/*.nav
 tags
-log/**
-!log/.gitkeep
+log/xi.leaks
+log/leaks.txt
 
 # Lua Developement Tools project files
 .metadata/**
@@ -236,9 +236,9 @@ modules/init.txt
 # Doxygen
 doxygen/
 
-# Docker
-*docker-compose*
-!dev.docker-compose.yml
+# Docker (not supported)
+Dockerfile
+docker-compose*
 
 # dSYM folders for Mac OS debugging
 xi_map.dSYM
@@ -260,8 +260,3 @@ venv.bak/
 
 # Test artifacts
 *.ctrf.json
-__pycache__
-
-sanity_checks_summary.md
-changed-files.txt
-clang_tidy_summary.md
