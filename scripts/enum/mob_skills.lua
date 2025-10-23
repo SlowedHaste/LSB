@@ -162,6 +162,10 @@ xi.mobSkill =
     TRION_FLAT_BLADE         =  969, -- Trion Flat Blade
     TRION_SAVAGE_BLADE       =  970, -- Trion Savage Blade
 
+    VOLKER_RED_LOTUS_BLADE   =  973, -- Volker Red Lotus Blade
+    VOLKER_SPIRITS_WITHIN    =  974, -- Volker Spirits Within
+    VOLKER_VORPAL_BLADE      =  975, -- Volker Vorpal Blade
+
     AJIDO_WARP_OUT           =  977, -- Windurst 9-2 Ajido teleport
     AJIDO_WARP_IN            =  978, -- Windurst 9-2 Ajido teleport
 

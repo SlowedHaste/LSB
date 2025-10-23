@@ -50,65 +50,65 @@ invalid_enums = [
 # 'functionName' : [ noNumberInParamX, noNumberInParamY, ... ],
 # Parameters are 0-indexed
 disallowed_numeric_parameters = {
-    "addItem"                 : [ 0 ],
-    "addKeyItem"              : [ 0 ],
-    "addSpell"                : [ 0 ],
-    "addStatusEffect"         : [ 0 ],
-    "addStatusEffectSilent"   : [ 0 ],
-    "addUsedItem"             : [ 0 ],
-    "canLearnSpell"           : [ 0 ],
-    "delItem"                 : [ 0 ],
-    "delContainerItems"       : [ 0 ],
-    "delKeyItem"              : [ 0 ],
-    "delSpell"                : [ 0 ],
-    "delStatusEffect"         : [ 0 ],
-    "delStatusEffectEx"       : [ 0 ],
-    "delUniqueEvent"          : [ 0 ],
-    "getEquipID"              : [ 0 ],
-    "getEquippedItem"         : [ 0 ],
-    "getItemQty"              : [ 0 ],
-    "hasCompletedUniqueEvent" : [ 0 ],
-    "hasItem"                 : [ 0 ],
-    "hasItemQty"              : [ 0 ],
-    "hasSpell"                : [ 0 ],
-    "messageBasic"            : [ 0 ],
-    "messageName"             : [ 0 ],
-    "messageSpecial"          : [ 0 ],
-    "messageText"             : [ 0 ],
-    "npcUtil.giveKeyItem"     : [ 1, 2 ],
-    "npcUtil.giveItem"        : [ 1 ],
-    "npcUtil.tradeHas"        : [ 1 ],
-    "npcUtil.tradeHasExactly" : [ 1 ],
-    "setUniqueEvent"          : [ 0 ],
-    "showText"                : [ 0 ],
+    "addItem": [0],
+    "addKeyItem": [0],
+    "addSpell": [0],
+    "addStatusEffect": [0],
+    "addStatusEffectSilent": [0],
+    "addUsedItem": [0],
+    "canLearnSpell": [0],
+    "delItem": [0],
+    "delContainerItems": [0],
+    "delKeyItem": [0],
+    "delSpell": [0],
+    "delStatusEffect": [0],
+    "delStatusEffectEx": [0],
+    "delUniqueEvent": [0],
+    "getEquipID": [0],
+    "getEquippedItem": [0],
+    "getItemQty": [0],
+    "hasCompletedUniqueEvent": [0],
+    "hasItem": [0],
+    "hasItemQty": [0],
+    "hasSpell": [0],
+    "messageBasic": [0],
+    "messageName": [0],
+    "messageSpecial": [0],
+    "messageText": [0],
+    "npcUtil.giveKeyItem": [1, 2],
+    "npcUtil.giveItem": [1],
+    "npcUtil.tradeHas": [1],
+    "npcUtil.tradeHasExactly": [1],
+    "setUniqueEvent": [0],
+    "showText": [0],
 }
 
 # Disallowed keys for reward tables
 disallowed_keys = [
-    "ki", 
+    "ki",
     "xp",
 ]
 
+
 def contains_word(word):
-    return re.compile(r'\b({0})\b'.format(word)).search
+    return re.compile(r"\b({0})\b".format(word)).search
+
 
 class LuaStyleCheck:
-    def __init__(self, input_file, show_errors = True):
+    def __init__(self, input_file, show_errors=True):
         self.filename = input_file
         self.show_errors = show_errors
 
         self.run_style_check()
 
-    def error(self, error_string, suppress_line_ref = False):
+    def error(self, error_string, suppress_line_ref=False):
         """Displays error_string along with filename and line.  Increments errcount for the class."""
 
         if self.show_errors:
-            print(f"{error_string}: {self.filename}:{self.counter}")
-
+            print(f"#### {error_string}:\n")
+            print(f"> {self.filename}:{self.counter}\n")
             if not suppress_line_ref:
-                print(f"{self.lines[self.counter - 1].strip()}                              <-- HERE")
-
-            print("")
+                print(f"```lua\n{self.lines[self.counter - 1].strip()}\n```\n")
 
         self.errcount += 1
 
@@ -151,7 +151,9 @@ class LuaStyleCheck:
         # ,[^ \n] : Any comma that does not have space or newline following
 
         for _ in re.finditer(r",[^ \n]", line):
-            self.error("Multiple parameters used without an appropriate following space or newline")
+            self.error(
+                "Multiple parameters used without an appropriate following space or newline"
+            )
 
     def check_conditional_padding(self, line):
         # \s{2,}(and|or)(\s{1,}|$)|\s{1,}(and|or)\s{2,}
@@ -168,7 +170,9 @@ class LuaStyleCheck:
         """
 
         # Ignore strings in line
-        quote_regex = regex.compile(r"\"(([^\"\"]+)|(?R))*+\"|\'(([^\'\']+)|(?R))*+\'", re.S)
+        quote_regex = regex.compile(
+            r"\"(([^\"\"]+)|(?R))*+\"|\'(([^\'\']+)|(?R))*+\'", re.S
+        )
         removed_quote_str = regex.sub(quote_regex, "", line)
 
         # ; : Any line that contains a semicolon.
@@ -191,11 +195,11 @@ class LuaStyleCheck:
 
         if "local " in line and " =" in line:
             line = line.split(" =", 1)[0]
-            line = line.replace('local','').strip()
-            if line != '':
-                for part in line.split(','):
+            line = line.replace("local", "").strip()
+            if line != "":
+                for part in line.split(","):
                     part = part.strip()
-                    if len(part) > 1 and '_' in part:
+                    if len(part) > 1 and "_" in part:
                         self.error("Underscore in variable name")
 
     def check_indentation(self, line):
@@ -203,7 +207,7 @@ class LuaStyleCheck:
 
         See: TBD
         """
-        if (len(line) - len(line.lstrip(' '))) % 4 != 0:
+        if (len(line) - len(line.lstrip(" "))) % 4 != 0:
             self.error("Indentation must be multiples of 4 spaces")
 
     def check_operator_padding(self, line):
@@ -221,7 +225,10 @@ class LuaStyleCheck:
         stripped_line = line.lstrip()
         brace_regex = regex.compile(r"\{(([^\}\{]+)|(?R))*+\}", re.S)
         stripped_line = regex.sub(brace_regex, "", stripped_line)
-        for _ in re.finditer(r"\s{2,}(>=|<=|==|~=|\+|\*|%|>|<|\^)|(>=|<=|==|~=|\+|\*|%|>|<|\^)\s{2,}", stripped_line):
+        for _ in re.finditer(
+            r"\s{2,}(>=|<=|==|~=|\+|\*|%|>|<|\^)|(>=|<=|==|~=|\+|\*|%|>|<|\^)\s{2,}",
+            stripped_line,
+        ):
             self.error("Excessive padding detected around operator or comparator.")
 
     def check_parentheses_padding(self, line):
@@ -232,8 +239,12 @@ class LuaStyleCheck:
         """
 
         if len(re.findall(r"\([ ]| [\)]", line)) > 0:
-            if not line.lstrip(' ')[0] == '(' and not line.lstrip(' ')[0] == ')': # Ignore large blocks ending or opening
-                self.error("No excess whitespace inside of parentheses or solely for alignment.")
+            if (
+                not line.lstrip(" ")[0] == "(" and not line.lstrip(" ")[0] == ")"
+            ):  # Ignore large blocks ending or opening
+                self.error(
+                    "No excess whitespace inside of parentheses or solely for alignment."
+                )
 
     def check_newline_after_end(self, line):
         """An empty newline is required after end if the code on the following line is at the same indentation level.
@@ -242,12 +253,16 @@ class LuaStyleCheck:
         """
         num_lines = len(self.lines)
 
-        if self.counter < num_lines and contains_word('end')(line):
-            current_indent = len(line) - len(line.lstrip(' '))
-            next_indent    = len(self.lines[self.counter]) - len(self.lines[self.counter].lstrip(' '))
+        if self.counter < num_lines and contains_word("end")(line):
+            current_indent = len(line) - len(line.lstrip(" "))
+            next_indent = len(self.lines[self.counter]) - len(
+                self.lines[self.counter].lstrip(" ")
+            )
 
             if current_indent == next_indent and self.lines[self.counter].strip() != "":
-                self.error("Newline required after end with code following on same level")
+                self.error(
+                    "Newline required after end with code following on same level"
+                )
 
     def check_no_newline_after_function_decl(self, line):
         """Function declarations should not have an empty newline following them.
@@ -255,7 +270,7 @@ class LuaStyleCheck:
         See: TBD
         """
 
-        if 'function' in line and self.lines[self.counter].strip() == '':
+        if "function" in line and self.lines[self.counter].strip() == "":
             self.error("No newlines after function declaration")
 
     def check_no_newline_before_end(self, line):
@@ -264,7 +279,7 @@ class LuaStyleCheck:
         See: TBD
         """
 
-        if contains_word('end')(line) and self.lines[self.counter - 2].strip() == '':
+        if contains_word("end")(line) and self.lines[self.counter - 2].strip() == "":
             self.error("No newlines before end statement")
 
     def check_no_single_line_functions(self, line):
@@ -273,7 +288,7 @@ class LuaStyleCheck:
         See: TBD
         """
 
-        if contains_word('function')(line) and contains_word('end')(line):
+        if contains_word("function")(line) and contains_word("end")(line):
             self.error("Function begins and ends on same line")
 
     def check_no_single_line_conditions(self, line):
@@ -282,7 +297,7 @@ class LuaStyleCheck:
         See: TBD
         """
 
-        if contains_word('if')(line) and contains_word('end')(line):
+        if contains_word("if")(line) and contains_word("end")(line):
             self.error("Condition begins and ends on a single line")
 
     def check_no_function_decl_padding(self, line):
@@ -301,32 +316,40 @@ class LuaStyleCheck:
         See: https://github.com/LandSandBoat/server/wiki/Development-Guide#lua-formatting-conditional-blocks
         """
 
-        stripped_line = re.sub(r"\".*?\"|'.*?'", "", line) # Ignore data in quotes
-        if contains_word('if')(stripped_line) or contains_word('elseif')(stripped_line):
-            condition_start = stripped_line.replace('elseif','').replace('if','').strip()
-            if not 'then' in condition_start and condition_start != '':
+        stripped_line = re.sub(r"\".*?\"|'.*?'", "", line)  # Ignore data in quotes
+        if contains_word("if")(stripped_line) or contains_word("elseif")(stripped_line):
+            condition_start = (
+                stripped_line.replace("elseif", "").replace("if", "").strip()
+            )
+            if not "then" in condition_start and condition_start != "":
                 self.error("Invalid multiline conditional format")
 
-        if contains_word('then')(stripped_line):
-            condition_end = stripped_line.replace('then','').strip()
-            if not 'if' in condition_end and condition_end != '':
+        if contains_word("then")(stripped_line):
+            condition_end = stripped_line.replace("then", "").strip()
+            if not "if" in condition_end and condition_end != "":
                 self.error("Invalid multiline conditional format")
 
     def check_deprecated_functions(self, line):
         for entry in deprecated_functions:
             deprecated_func = entry[0]
-            replacement     = entry[1]
+            replacement = entry[1]
             if contains_word(deprecated_func)(line):
-                self.error(f"Use of deprecated function: {deprecated_func}. Suggested replacement: {replacement}")
+                self.error(
+                    f"Use of deprecated function: {deprecated_func}. Suggested replacement: {replacement}"
+                )
 
     def check_deprecated_require(self, line):
         if ("require(") in line:
             for deprecated_str in deprecated_requires:
                 if deprecated_str in line:
                     if deprecated_str == "IDs":
-                        self.error("IDs requires should be replaced with references to zones[xi.zone.ZONE_ENUM]")
+                        self.error(
+                            "IDs requires should be replaced with references to zones[xi.zone.ZONE_ENUM]"
+                        )
                     else:
-                        self.error(f"Use of deprecated/unnecessary require: {deprecated_str}. This should be removed")
+                        self.error(
+                            f"Use of deprecated/unnecessary require: {deprecated_str}. This should be removed"
+                        )
 
     def check_invalid_enum(self, line):
         for invalid_enum in invalid_enums:
@@ -338,7 +361,7 @@ class LuaStyleCheck:
     def check_function_parameters(self, line):
         # Iterate through all entries in the disallowed table
         for fn_name, param_locations in disallowed_numeric_parameters.items():
-            regex_str = r'{0}\(([^)]+)\)'.format(fn_name)
+            regex_str = r"{0}\(([^)]+)\)".format(fn_name)
 
             # For each match of the current entry in the line
             for parameter_str in re.findall(regex_str, line):
@@ -346,21 +369,30 @@ class LuaStyleCheck:
 
                 # For each parameter location
                 for position in param_locations:
-                    if position < len(parameter_list) and parameter_list[position].strip().isnumeric():
-                        self.error(f"Magic Number is not allowed at this location ({position}).")
+                    if (
+                        position < len(parameter_list)
+                        and parameter_list[position].strip().isnumeric()
+                    ):
+                        self.error(
+                            f"Magic Number is not allowed at this location ({position})."
+                        )
 
     def check_random_bounds(self, line):
-        randString = re.search(r'math\.random\(([^()]*)\)', line)
+        randString = re.search(r"math\.random\(([^()]*)\)", line)
         if randString:
-            paramList = randString.group(0).split(',')
+            paramList = randString.group(0).split(",")
             if len(paramList) != 2:
-                self.error(f"math.random() calls should have upper and lower bounds ({randString.group(0)}).")
+                self.error(
+                    f"math.random() calls should have upper and lower bounds ({randString.group(0)})."
+                )
 
     def check_getpool_magic_number(self, line):
         """Detects usage of :getPool() with any conditional operator and an integer, and triggers an error."""
         match = re.search(r":getPool\(\)\s*(==|~=|<=|>=|<|>)\s*\d+", line)
         if match:
-            self.error(":getPool() compared to integer literal (magic number) using a conditional operator is not allowed.")
+            self.error(
+                ":getPool() compared to integer literal (magic number) using a conditional operator is not allowed."
+            )
 
     def check_getentity_nilsafety(self, line):
         """Detect direct GetMobByID() or GetNPCByID() calls with method chaining (unsafe)."""
@@ -371,19 +403,19 @@ class LuaStyleCheck:
 
     def run_style_check(self):
         if self.filename is None:
-            print("ERROR: No filename provided to LuaStyleCheck class.")
+            print("### ERROR: No filename provided to LuaStyleCheck class.\n")
             return
 
-        with open(self.filename, 'r') as f:
-            self.lines          = f.readlines()
-            in_block_comment    = False
-            in_condition        = False
-            full_condition      = ""
-            uses_id             = False
-            has_id_ref          = False
+        with open(self.filename, "r") as f:
+            self.lines = f.readlines()
+            in_block_comment = False
+            in_condition = False
+            full_condition = ""
+            uses_id = False
+            has_id_ref = False
             pending_reward_table = False
-            in_reward_table     = False
-            brace_count         = 0
+            in_reward_table = False
+            brace_count = 0
 
             for line in self.lines:
                 self.counter = self.counter + 1
@@ -400,41 +432,56 @@ class LuaStyleCheck:
 
                 if not in_reward_table:
                     # Detect assignment to quest.reward or mission.reward (brace may be on next line)
-                    if re.search(r'(quest|mission)\.reward\s*=\s*$', line.strip()):
+                    if re.search(r"(quest|mission)\.reward\s*=\s*$", line.strip()):
                         pending_reward_table = True
                         continue
-                    if re.search(r'(quest|mission)\.reward\s*=\s*\{', line):
+                    if re.search(r"(quest|mission)\.reward\s*=\s*\{", line):
                         in_reward_table = True
-                        brace_count = line.count('{') - line.count('}')
+                        brace_count = line.count("{") - line.count("}")
                         # Check for disallowed keys on same line as opening brace
                         for key in disallowed_keys:
-                            if re.search(rf'\b{key}\s*=', line):
-                                self.error(f"Found disallowed key '{key}' in reward table", suppress_line_ref=False)
+                            if re.search(rf"\b{key}\s*=", line):
+                                self.error(
+                                    f"Found disallowed key '{key}' in reward table",
+                                    suppress_line_ref=False,
+                                )
                         continue
                 if pending_reward_table:
-                    if '{' in line:
+                    if "{" in line:
                         in_reward_table = True
-                        brace_count = line.count('{') - line.count('}')
+                        brace_count = line.count("{") - line.count("}")
                         pending_reward_table = False
                         # Check for disallowed keys on same line as opening brace
                         for key in disallowed_keys:
-                            if re.search(rf'\b{key}\s*=', line):
-                                self.error(f"Found disallowed key '{key}' in reward table", suppress_line_ref=False)
+                            if re.search(rf"\b{key}\s*=", line):
+                                self.error(
+                                    f"Found disallowed key '{key}' in reward table",
+                                    suppress_line_ref=False,
+                                )
                         continue
                 if in_reward_table:
-                    brace_count += line.count('{') - line.count('}')
+                    brace_count += line.count("{") - line.count("}")
                     for key in disallowed_keys:
-                        if re.search(rf'\b{key}\s*=', line):
-                            self.error(f"Found disallowed key '{key}' in reward table", suppress_line_ref=False)
+                        if re.search(rf"\b{key}\s*=", line):
+                            self.error(
+                                f"Found disallowed key '{key}' in reward table",
+                                suppress_line_ref=False,
+                            )
                     if brace_count <= 0:
                         in_reward_table = False
                         brace_count = 0
                         continue
 
                 comment_header = line.rstrip("\n")
-                if re.search(r"^-+$", comment_header) and len(comment_header) > 2 and len(comment_header) != 35:
+                if (
+                    re.search(r"^-+$", comment_header)
+                    and len(comment_header) > 2
+                    and len(comment_header) != 35
+                ):
                     # For now, ignore empty comments with only `--`
-                    self.error("Standard comment block lines of '-' should be 35 characters.")
+                    self.error(
+                        "Standard comment block lines of '-' should be 35 characters."
+                    )
 
                 # Remove in-line comments
                 code_line = re.sub(r"(?=--)(.*?)(?=\r\n|\n)", "", line).rstrip()
@@ -445,10 +492,10 @@ class LuaStyleCheck:
                 self.check_deprecated_require(code_line)
 
                 # Replace quoted strings with a placeholder, and ignore escaped quotes
-                code_line = code_line.replace("\\'", '')
-                code_line = code_line.replace('\\"', '')
+                code_line = code_line.replace("\\'", "")
+                code_line = code_line.replace('\\"', "")
 
-                code_line = re.sub(r'\"([^\"]*?)\"', "strVal", code_line)
+                code_line = re.sub(r"\"([^\"]*?)\"", "strVal", code_line)
                 code_line = re.sub(r"\'([^\"]*?)\'", "strVal", code_line)
 
                 # Checks that apply to all lines
@@ -495,47 +542,75 @@ class LuaStyleCheck:
                 # Multiple line conditions can occur in several places.  Check every individual
                 # line to ensure none start with and|or, or end with not
                 stripped_line = code_line.strip()
-                if stripped_line.startswith('and ') or stripped_line.startswith('or '):
-                    self.error('Multiline conditions should not start with and|or')
+                if stripped_line.startswith("and ") or stripped_line.startswith("or "):
+                    self.error("Multiline conditions should not start with and|or")
 
-                if stripped_line.endswith('not'):
-                    self.error('Multiline conditions should not end with not')
+                if stripped_line.endswith("not"):
+                    self.error("Multiline conditions should not end with not")
 
                 # Condition blocks/lines should not have outer parentheses
                 # Find all strings contained in parentheses: \((([^\)\(]+)|(?R))*+\)
                 # If nothing is left on the line after removing, then the string breaks rules
                 # TODO: If we have a string inside parentheses, make sure it has and/or in the string
 
-                if contains_word('if')(code_line) or contains_word('elseif')(code_line) or in_condition:
+                if (
+                    contains_word("if")(code_line)
+                    or contains_word("elseif")(code_line)
+                    or in_condition
+                ):
                     full_condition += code_line
 
                     match = re.search(r"\bthen\b\s*(.*)", code_line)
                     if match and match.group(1):
-                        self.error("Code after a condition ends should be on its own line.")
+                        self.error(
+                            "Code after a condition ends should be on its own line."
+                        )
 
-                    if contains_word('then')(code_line):
-                        condition_str = full_condition.replace('elseif','').replace('if','').replace('then','').strip()
+                    if contains_word("then")(code_line):
+                        condition_str = (
+                            full_condition.replace("elseif", "")
+                            .replace("if", "")
+                            .replace("then", "")
+                            .strip()
+                        )
                         paren_regex = regex.compile(r"\((([^\)\(]+)|(?R))*+\)", re.S)
                         removed_paren_str = regex.sub(paren_regex, "", condition_str)
 
                         if removed_paren_str == "":
-                            self.error("Outer parentheses should be removed in condition")
+                            self.error(
+                                "Outer parentheses should be removed in condition"
+                            )
 
-                        if len(re.findall(r"== true|== false|~= true|~= false", condition_str)) > 0:
+                        if (
+                            len(
+                                re.findall(
+                                    r"== true|== false|~= true|~= false", condition_str
+                                )
+                            )
+                            > 0
+                        ):
                             self.error("Boolean with explicit value check")
 
-                        if not in_condition and len(re.findall(r" and | or ", condition_str)) > 0 and len(condition_str) > 72:
+                        if (
+                            not in_condition
+                            and len(re.findall(r" and | or ", condition_str)) > 0
+                            and len(condition_str) > 72
+                        ):
                             self.error("Multiline conditional format required")
 
-                        in_condition   = False
+                        in_condition = False
                         full_condition = ""
 
                     # Multiline conditions
                     else:
                         in_condition = True
 
-            if "DefaultActions" not in self.filename and uses_id == True and not has_id_ref:
-                self.error("ID variable is assigned but unused", suppress_line_ref = True)
+            if (
+                "DefaultActions" not in self.filename
+                and uses_id == True
+                and not has_id_ref
+            ):
+                self.error("ID variable is assigned but unused", suppress_line_ref=True)
             # If you want to modify the files during the checks, write your changed lines to the appropriate
             # place in 'lines' (usually with 'lines[counter - 1]') and uncomment these two lines.
             #
@@ -544,11 +619,11 @@ class LuaStyleCheck:
 
         return
 
-    show_errors  = True
-    lines        = []
-    counter      = 0
-    filename     = ""
-    errcount     = 0
+    show_errors = True
+    lines = []
+    counter = 0
+    filename = ""
+    errcount = 0
 
 
 ### TODO:
@@ -559,23 +634,27 @@ class LuaStyleCheck:
 
 target = sys.argv[1]
 
-total_errors    = 0
+total_errors = 0
 expected_errors = 0
 
-if target == 'modules':
-    for filename in glob.iglob('modules/**/*.lua', recursive = True):
+if target == "modules":
+    for filename in glob.iglob("modules/**/*.lua", recursive=True):
         total_errors += LuaStyleCheck(filename).errcount
-elif target == 'scripts':
-    for filename in glob.iglob('scripts/**/*.lua', recursive = True):
+elif target == "scripts":
+    for filename in glob.iglob("scripts/**/*.lua", recursive=True):
         total_errors += LuaStyleCheck(filename).errcount
-elif target == 'test':
-    total_errors = LuaStyleCheck('tools/ci/tests/stylecheck.lua', show_errors = False).errcount
+elif target == "test":
+    total_errors = LuaStyleCheck(
+        "tools/ci/sanity_checks/lua_stylecheck.lua", show_errors=False
+    ).errcount
     expected_errors = 93
 else:
     total_errors = LuaStyleCheck(target).errcount
 
 if total_errors != expected_errors:
-    if target != 'test':
-        print(f"Lua styling errors: {total_errors}")
+    if target != "test":
+        print(f"#### Lua styling errors: {total_errors}\n")
     else:
-        print(f"Stylecheck Unit tests failed! Expected {expected_errors} errors and found {total_errors}.")
+        print(
+            f"### Stylecheck Unit tests failed! Expected {expected_errors} errors and found {total_errors}.\n"
+        )

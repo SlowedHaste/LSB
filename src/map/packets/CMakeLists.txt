@@ -25,8 +25,6 @@ set(PACKET_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/fish_ranking.h
     ${CMAKE_CURRENT_SOURCE_DIR}/pet_sync.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/pet_sync.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/quest_mission_log.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/quest_mission_log.h
     ${CMAKE_CURRENT_SOURCE_DIR}/server_message.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/server_message.h
     ${CMAKE_CURRENT_SOURCE_DIR}/objective_utility.cpp

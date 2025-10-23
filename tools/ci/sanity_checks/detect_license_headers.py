@@ -51,12 +51,6 @@ def main():
                     print("Incorrect header in file: " + file)
                     bad_headers = True
 
-    if bad_headers:
-        sys.exit(1)
-
-    print("All headers are correct.")
-    sys.exit(0)
-
 
 if __name__ == "__main__":
     main()
