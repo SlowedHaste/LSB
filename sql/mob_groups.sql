@@ -11395,9 +11395,9 @@ INSERT INTO `mob_groups` VALUES (127,5146,164,'Laidly_Laurence',0,128,0,0,9999,9
 
 INSERT INTO `mob_groups` VALUES (1,3579,165,'Shadow_Lord_1',0,128,0,10000,0,60,60,0);
 INSERT INTO `mob_groups` VALUES (2,4593,165,'Shadow_Lord_2',0,128,0,4000,0,60,60,0);
-INSERT INTO `mob_groups` VALUES (3,4498,165,'Zeid',0,128,0,0,0,75,76,0);
-INSERT INTO `mob_groups` VALUES (4,4498,165,'Zeid',0,128,0,0,0,75,78,0);
-INSERT INTO `mob_groups` VALUES (5,3580,165,'Shadow_of_Rage',0,128,0,0,0,75,75,0);
+INSERT INTO `mob_groups` VALUES (3,4498,165,'Zeid',0,128,0,8500,8500,75,76,0);
+INSERT INTO `mob_groups` VALUES (4,4498,165,'Zeid',0,128,0,8500,8500,75,78,0);
+INSERT INTO `mob_groups` VALUES (5,3580,165,'Shadow_of_Rage',0,128,0,500,0,75,75,0);
 INSERT INTO `mob_groups` VALUES (6,1788,165,'Grand_Marquis_Chomiel',0,128,0,0,0,60,60,0);
 INSERT INTO `mob_groups` VALUES (7,1130,165,'Duke_Amduscias',0,128,0,0,0,60,60,0);
 INSERT INTO `mob_groups` VALUES (8,811,165,'Count_Andromalius',0,128,0,0,0,60,60,0);
@@ -11420,7 +11420,7 @@ INSERT INTO `mob_groups` VALUES (24,0,165,'Lion',0,128,0,0,0,0,0,0);
 INSERT INTO `mob_groups` VALUES (25,0,165,'Lion',0,128,0,0,0,0,0,0);
 INSERT INTO `mob_groups` VALUES (26,0,165,'Zeid',0,128,0,0,0,0,0,0);
 INSERT INTO `mob_groups` VALUES (27,0,165,'Aldo',0,128,0,0,0,0,0,0);
-INSERT INTO `mob_groups` VALUES (28,4249,165,'Volker',0,128,0,0,0,75,75,1); -- ally
+INSERT INTO `mob_groups` VALUES (28,4249,165,'Volker',0,128,0,1300,0,75,75,1); -- ally
 
 -- ------------------------------------------------------------
 -- Ranguemont_Pass (Zone 166)

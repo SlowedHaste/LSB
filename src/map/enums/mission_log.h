@@ -1,4 +1,4 @@
-/*
+﻿/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -21,16 +21,31 @@
 
 #pragma once
 
-#include <cstdint>
-
-enum class GP_SERV_COMMAND_MISCDATA_TYPE : uint16_t
+enum class MissionLog : uint8_t
 {
-    Merits       = 0x02,
-    Monstrosity1 = 0x03,
-    Monstrosity2 = 0x04,
-    JobPoints    = 0x05,
-    Homepoints   = 0x06,
-    Unity        = 0x07,
-    StatusIcons  = 0x09,
-    Unknown      = 0x0A,
+    Sandoria = 0,
+    Bastok   = 1,
+    Windurst = 2,
+    Zilart   = 3,
+    ToAU     = 4,
+    WoTG     = 5,
+    CoP      = 6,
+    Assault  = 7,
+    Campaign = 8,
+    ACP      = 9,
+    AMK      = 10,
+    ASA      = 11,
+    SoA      = 12,
+    RoV      = 13,
+    // TODO: TVR
+};
+
+// Client-side MISSION packet 'Port' values for completed missions.
+// Not all storylines use this system. See GP_SERV_COMMAND_MISSION::MISSION for details.
+enum class MissionComplete : uint16_t
+{
+    Campaign1 = 0x0030,
+    Campaign2 = 0x0038,
+    Nations   = 0x00D0,
+    ToAU_WoTG = 0x00D8,
 };

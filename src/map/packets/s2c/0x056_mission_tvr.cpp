@@ -1,4 +1,4 @@
-/*
+﻿/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -19,18 +19,19 @@
 ===========================================================================
 */
 
-#pragma once
+#include "0x056_mission_tvr.h"
 
-#include <cstdint>
+#include "entities/charentity.h"
 
-enum class GP_SERV_COMMAND_MISCDATA_TYPE : uint16_t
+GP_SERV_COMMAND_MISSION::TVR::TVR(CCharEntity* PChar)
 {
-    Merits       = 0x02,
-    Monstrosity1 = 0x03,
-    Monstrosity2 = 0x04,
-    JobPoints    = 0x05,
-    Homepoints   = 0x06,
-    Unity        = 0x07,
-    StatusIcons  = 0x09,
-    Unknown      = 0x0A,
-};
+    auto& packet = this->data();
+
+    packet.Port = 0xFFFE;
+
+    // TODO: TVR is not implemented yet
+    // When the client has no active or completed TVR missions, this value is set to 0.
+    // When the client has completed the original TVR mission line prior to the Epilogue, this value will be set to 999.
+    // When the client has completed TVR missions but does not have one currently active, then this value will have an upper-bounds flag set.
+    // packet.Expansion_TVR = PChar->m_missionLog[MISSION_TVR].current;
+}
