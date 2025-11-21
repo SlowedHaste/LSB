@@ -387,14 +387,16 @@ struct fishingarea_t
     }
 };
 
-struct fishinggroupitem_t
+struct fishing_group_member_t
 {
     uint16 rarity;
-    uint32 fishId;
+    uint16 poolSize;
+    uint16 restockRate;
 
-    fishinggroupitem_t()
+    fishing_group_member_t()
     : rarity(0)
-    , fishId(0)
+    , poolSize(0)
+    , restockRate(0)
     {
     }
 };

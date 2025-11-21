@@ -460,6 +460,7 @@ auto GenerateDynamicEntity(CZone* PZone, CInstance* PInstance, sol::table table)
 
 // Fishing Contest
 auto GetFishingContest() -> sol::table;
+auto GetFishingData() -> sol::table;
 void InitNewFishingContest();
 void SetContestParameters(uint16 fishId, uint8 measure, uint8 criteria);
 void ProgressFishingContest();

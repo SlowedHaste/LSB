@@ -19,9 +19,11 @@
 ===========================================================================
 */
 
+#include <cstring>
+#include <vector>
+
 #include "fishingutils.h"
 
-#include "common/database.h"
 #include "common/logging.h"
 #include "common/utils.h"
 #include "common/vana_time.h"
@@ -61,6 +63,7 @@
 #include "packets/c2s/0x110_fishing_2.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "status_effect_container.h"
+#include "lua/luautils.h"
 #include "zoneutils.h"
 
 namespace fishingutils
@@ -74,7 +77,7 @@ std::map<uint16, bait_t*>                         FishingBaits;
 std::map<uint16, std::map<uint32, fishmob_t*>>    FishZoneMobList;       // zoneid, mobid, mob
 std::map<uint16, std::map<uint8, fishingarea_t*>> FishingAreaList;       // zoneid, areaid, area
 std::map<uint16, std::map<uint8, uint16>>         FishingCatchLists;     // zoneid, areaid, groupid
-std::map<uint16, std::map<uint32, uint16>>        FishingGroups;         // groupid, fishid, rarity
+std::map<uint16, std::map<uint32, fishing_group_member_t>> FishingGroups; // groupid, fishid, details
 std::map<uint16, std::map<uint32, uint8>>         FishingBaitAffinities; // baitid, fishid, power
 
 /************************************************************************
@@ -122,20 +125,31 @@ void RestockFishingAreas()
 
 void CreateFishingPools()
 {
-    const auto rset = db::preparedStmt("SELECT fc.zoneid, fc.areaid, fg.fishid, fg.pool_size, fg.restock_rate "
-                                       "FROM fishing_group fg "
-                                       "JOIN fishing_catch fc USING(groupid)");
-    FOR_DB_MULTIPLE_RESULTS(rset)
+    for (const auto& catchList : FishingCatchLists)
     {
-        const auto zoneId = rset->get<uint16>("zoneid");
-        auto       areaId = rset->get<uint8>("areaid");
-        auto       fishId = rset->get<uint16>("fishid");
-        const auto pSize  = rset->get<uint16>("pool_size");
-        const auto rRate  = rset->get<uint16>("restock_rate");
+        const auto zoneId = catchList.first;
 
-        FishingPools[zoneId].catchPools[areaId].stock[fishId].quantity    = pSize;
-        FishingPools[zoneId].catchPools[areaId].stock[fishId].maxQuantity = pSize;
-        FishingPools[zoneId].catchPools[areaId].stock[fishId].restockRate = rRate;
+        for (const auto& areaEntry : catchList.second)
+        {
+            const auto areaId  = areaEntry.first;
+            const auto groupId = areaEntry.second;
+
+            const auto groupIt = FishingGroups.find(groupId);
+            if (groupIt == FishingGroups.end())
+            {
+                ShowWarning("fishingutils::CreateFishingPools() - missing fishing group %u for zone %u area %u", groupId, zoneId, areaId);
+                continue;
+            }
+
+            for (const auto& fishEntry : groupIt->second)
+            {
+                const auto& member   = fishEntry.second;
+                auto&       poolData = FishingPools[zoneId].catchPools[areaId].stock[fishEntry.first];
+                poolData.quantity    = member.poolSize;
+                poolData.maxQuantity = member.poolSize;
+                poolData.restockRate = member.restockRate;
+            }
+        }
     }
 }
 
@@ -1079,11 +1093,14 @@ std::map<fish_t*, uint16> GetFishPool(uint16 zoneID, uint8 areaID, uint16 BaitID
     std::map<fish_t*, uint16> pool;
     uint16                    groupId = FishingCatchLists[zoneID][areaID];
 
-    for (auto fish : FishingGroups[groupId])
+    for (const auto& fish : FishingGroups[groupId])
     {
-        if ((!FishList[fish.first]->item) && FishingBaitAffinities.count(BaitID) && FishingBaitAffinities[BaitID].count(fish.first))
+        const auto fishId = fish.first;
+        const auto& data  = fish.second;
+
+        if ((!FishList[fishId]->item) && FishingBaitAffinities.count(BaitID) && FishingBaitAffinities[BaitID].count(fishId))
         {
-            pool.insert(std::make_pair(FishList[fish.first], fish.second));
+            pool.insert(std::make_pair(FishList[fishId], data.rarity));
         }
     }
 
@@ -1095,7 +1112,7 @@ std::vector<fish_t*> GetItemPool(uint16 zoneID, uint8 areaID)
     std::vector<fish_t*> pool;
     uint16               groupId = FishingCatchLists[zoneID][areaID];
 
-    for (auto fish : FishingGroups[groupId])
+    for (const auto& fish : FishingGroups[groupId])
     {
         if (FishList[fish.first]->item)
         {
@@ -2922,272 +2939,389 @@ void LoadFishingMessages()
     // clang-format on
 }
 
-void LoadFishingAreas()
+void LoadFishingAreas(const sol::table& areas)
 {
-    const auto rset = db::preparedStmt("SELECT fa.areaid, fa.bound_type, fa.bound_height, fa.bounds, "
-                                       "fa.center_x, fa.center_y, fa.center_z, fa.bound_radius, "
-                                       "fa.name, fa.zoneid, fz.difficulty "
-                                       "FROM `fishing_area` fa "
-                                       "LEFT JOIN fishing_zone fz "
-                                       "ON fz.zoneid = fa.zoneid");
-    FOR_DB_MULTIPLE_RESULTS(rset)
+    if (!areas.valid())
     {
-        auto* fishingArea = new fishingarea_t();
+        ShowError("LoadFishingAreas: missing areas table in fishing data");
+        return;
+    }
 
-        fishingArea->areaId   = rset->get<uint8>("areaid");
-        fishingArea->areatype = rset->get<uint8>("bound_type");
-        fishingArea->height   = rset->get<uint8>("bound_height");
-
-        fishingArea->numBounds  = 0;
-        fishingArea->areaBounds = nullptr;
-
-        if (!rset->isNull("bounds"))
+    for (const auto& zoneEntry : areas)
+    {
+        if (zoneEntry.second.get_type() != sol::type::table)
         {
-            constexpr size_t MAX_BOUNDS             = 32;
-            areavector_t     tempBounds[MAX_BOUNDS] = {};
-            size_t           actualBounds           = 0;
+            continue;
+        }
 
-            db::extractFromBlob(rset, "bounds", tempBounds);
+        const auto       zoneId    = static_cast<uint16>(zoneEntry.first.as<uint32>());
+        const sol::table zoneAreas = zoneEntry.second.as<sol::table>();
 
-            for (size_t i = 0; i < MAX_BOUNDS; i++)
+        for (const auto& areaEntry : zoneAreas)
+        {
+            if (areaEntry.second.get_type() != sol::type::table)
             {
-                if (tempBounds[i].x != 0 || tempBounds[i].y != 0 || tempBounds[i].z != 0)
+                continue;
+            }
+
+            const auto       areaId            = static_cast<uint8>(areaEntry.first.as<uint32>());
+            const sol::table areaData          = areaEntry.second.as<sol::table>();
+            auto*            fishingArea       = new fishingarea_t();
+            auto             areaBoundsVectors = std::vector<areavector_t>();
+
+            fishingArea->areaId     = areaId;
+            fishingArea->areatype   = areaData["boundType"].get_or<uint8>(0);
+            fishingArea->height     = areaData["boundHeight"].get_or<uint8>(0);
+            fishingArea->radius     = areaData["boundRadius"].get_or<uint8>(0);
+            fishingArea->areaName   = areaData["name"].get_or<std::string>("");
+            fishingArea->zoneId     = zoneId;
+            fishingArea->difficulty = areaData["difficulty"].get_or<uint8>(0);
+
+            sol::object centerObj = areaData["center"];
+            if (centerObj.valid() && centerObj.is<sol::table>())
+            {
+                const sol::table center = centerObj.as<sol::table>();
+                fishingArea->center.x   = center.get_or("x", 0.0f);
+                fishingArea->center.y   = center.get_or("y", 0.0f);
+                fishingArea->center.z   = center.get_or("z", 0.0f);
+            }
+
+            sol::object boundsObj = areaData["bounds"];
+            if (boundsObj.valid() && boundsObj.is<sol::table>())
+            {
+                const sol::table boundsTable = boundsObj.as<sol::table>();
+                areaBoundsVectors.reserve(boundsTable.size());
+
+                for (const auto& boundEntry : boundsTable)
                 {
-                    actualBounds = i + 1;
+                    if (boundEntry.second.get_type() != sol::type::table)
+                    {
+                        continue;
+                    }
+
+                    const sol::table vectorTable = boundEntry.second.as<sol::table>();
+                    areaBoundsVectors.emplace_back(
+                        vectorTable.get_or("x", 0.0f),
+                        vectorTable.get_or("y", 0.0f),
+                        vectorTable.get_or("z", 0.0f));
+                }
+
+                if (!areaBoundsVectors.empty())
+                {
+                    fishingArea->numBounds  = static_cast<uint8>(areaBoundsVectors.size());
+                    fishingArea->areaBounds = new areavector_t[areaBoundsVectors.size()];
+                    std::memcpy(fishingArea->areaBounds, areaBoundsVectors.data(), areaBoundsVectors.size() * sizeof(areavector_t));
                 }
             }
 
-            if (actualBounds > 0)
-            {
-                fishingArea->numBounds  = static_cast<uint8>(actualBounds);
-                fishingArea->areaBounds = new areavector_t[actualBounds];
-                std::memcpy(fishingArea->areaBounds, tempBounds, actualBounds * sizeof(areavector_t));
-            }
+            FishingAreaList[fishingArea->zoneId][fishingArea->areaId] = fishingArea;
         }
-
-        fishingArea->center.x   = rset->get<float>("center_x");
-        fishingArea->center.y   = rset->get<float>("center_y");
-        fishingArea->center.z   = rset->get<float>("center_z");
-        fishingArea->radius     = rset->get<uint8>("bound_radius");
-        fishingArea->areaName   = rset->get<std::string>("name");
-        fishingArea->zoneId     = rset->get<uint32>("zoneid");
-        fishingArea->difficulty = rset->get<uint8>("difficulty");
-
-        FishingAreaList[fishingArea->zoneId][fishingArea->areaId] = fishingArea;
     }
 }
 
-void LoadFishItems()
+void LoadFishItems(const sol::table& fishTable)
 {
-    const auto rset = db::preparedStmt("SELECT distinct "
-                                       "ff.fishid, ff.name, ff.skill_level, ff.difficulty, "
-                                       "ff.base_delay, ff.base_move, ff.min_length, ff.max_length, "
-                                       "ff.size_type, ff.water_type, ff.log, ff.quest, "
-                                       "ff.flags, ff.legendary, ff.legendary_flags, ff.item, "
-                                       "ff.max_hook, ff.rarity, ff.required_keyitem, ff.required_catches, "
-                                       "ff.quest_status, ff.quest_only, ff.ranking, ff.contest "
-                                       "FROM fishing_fish ff "
-                                       "WHERE ff.disabled = 0 AND ff.ranking < 99");
-    FOR_DB_MULTIPLE_RESULTS(rset)
+    if (!fishTable.valid())
     {
+        ShowError("LoadFishItems: missing fish table in fishing data");
+        return;
+    }
+
+    for (const auto& fishEntry : fishTable)
+    {
+        if (fishEntry.second.get_type() != sol::type::table)
+        {
+            continue;
+        }
+
+        const auto       fishId   = static_cast<uint16>(fishEntry.first.as<uint32>());
+        const sol::table fishData = fishEntry.second.as<sol::table>();
+
         auto* fish = new fish_t();
 
-        fish->fishID          = rset->get<uint16>("fishid");
-        fish->fishName        = rset->get<std::string>("name");
-        fish->maxSkill        = rset->get<uint8>("skill_level");
-        fish->difficulty      = rset->get<uint8>("difficulty");
-        fish->baseDelay       = rset->get<uint8>("base_delay");
-        fish->baseMove        = rset->get<uint8>("base_move");
-        fish->minLength       = rset->get<uint16>("min_length");
-        fish->maxLength       = rset->get<uint16>("max_length");
-        fish->sizeType        = rset->get<uint8>("size_type");
-        fish->waterType       = rset->get<uint8>("water_type");
-        fish->log             = rset->get<uint8>("log");
-        fish->quest           = rset->get<uint8>("quest");
-        fish->fishFlags       = rset->get<uint32>("flags");
-        fish->legendary       = rset->get<bool>("legendary");
-        fish->legendary_flags = rset->get<uint32>("legendary_flags");
-        fish->item            = rset->get<bool>("item");
-        fish->maxhook         = rset->get<uint8>("max_hook");
-        fish->rarity          = rset->get<uint16>("rarity");
-        fish->reqKeyItem      = rset->get<KeyItem>("required_keyitem");
+        fish->fishID          = fishId;
+        fish->fishName        = fishData["name"].get_or<std::string>("");
+        fish->maxSkill        = fishData["skill"].get_or<uint8>(0);
+        fish->difficulty      = fishData["difficulty"].get_or<uint8>(0);
+        fish->baseDelay       = fishData["baseDelay"].get_or<uint8>(0);
+        fish->baseMove        = fishData["baseMove"].get_or<uint8>(0);
+        fish->minLength       = fishData["minLength"].get_or<uint16>(1);
+        fish->maxLength       = fishData["maxLength"].get_or<uint16>(1);
+        fish->sizeType        = fishData["sizeType"].get_or<uint8>(0);
+        fish->waterType       = fishData["waterType"].get_or<uint8>(0);
+        fish->log             = fishData["log"].get_or<uint8>(0);
+        fish->quest           = fishData["quest"].get_or<uint8>(0);
+        fish->fishFlags       = fishData["flags"].get_or<uint32>(0);
+        fish->legendary       = fishData["legendary"].get_or(false);
+        fish->legendary_flags = fishData["legendaryFlags"].get_or<uint32>(0);
+        fish->item            = fishData["item"].get_or(false);
+        fish->maxhook         = fishData["maxHook"].get_or<uint8>(1);
+        fish->rarity          = fishData["rarity"].get_or<uint16>(0);
+        fish->reqKeyItem      = static_cast<KeyItem>(fishData["requiredKeyItem"].get_or<uint16>(0));
 
         fish->reqFish = new std::vector<uint16>();
 
-        constexpr size_t MAX_REQ_FISH              = 10;
-        uint16           tempReqFish[MAX_REQ_FISH] = {};
-
-        db::extractFromBlob(rset, "required_catches", tempReqFish);
-        for (size_t i = 0; i < MAX_REQ_FISH; i++)
+        sol::object requiredCatches = fishData["requiredCatches"];
+        if (requiredCatches.valid() && requiredCatches.is<sol::table>())
         {
-            if (tempReqFish[i] != 0)
+            for (const auto& entry : requiredCatches.as<sol::table>())
             {
-                fish->reqFish->emplace_back(tempReqFish[i]);
-            }
-            else
-            {
-                break;
+                fish->reqFish->emplace_back(entry.second.as<uint16>());
             }
         }
 
-        fish->quest_status = rset->get<uint8>("quest_status");
-        fish->quest_only   = rset->get<bool>("quest_only");
-        fish->ranking      = rset->get<uint8>("ranking");
-        fish->contest      = rset->get<bool>("contest");
+        fish->quest_status = fishData["questStatus"].get_or<uint8>(0);
+        fish->quest_only   = fishData["questOnly"].get_or(false);
+        fish->ranking      = fishData["ranking"].get_or<uint8>(0);
+        fish->contest      = fishData["contest"].get_or(false);
 
         FishList[fish->fishID] = fish;
     }
 }
 
-void LoadFishMobs()
+void LoadFishMobs(const sol::table& mobTable)
 {
-    const auto rset = db::preparedStmt("SELECT mobid, name, level, difficulty, "
-                                       "base_delay, base_move, log, quest, "
-                                       "nm, nm_flags, rarity, min_respawn, "
-                                       "required_keyitem, required_baitid, areaid, zoneid, "
-                                       "quest_only, min_length, max_length, ranking, "
-                                       "max_respawn, alternative_baitid "
-                                       "FROM fishing_mob "
-                                       "WHERE disabled=0 "
-                                       "ORDER BY mobid ASC");
-    FOR_DB_MULTIPLE_RESULTS(rset)
+    if (!mobTable.valid())
     {
+        ShowError("LoadFishMobs: missing mobs table in fishing data");
+        return;
+    }
+
+    for (const auto& mobEntry : mobTable)
+    {
+        if (mobEntry.second.get_type() != sol::type::table)
+        {
+            continue;
+        }
+
+        const auto       mobId   = mobEntry.first.as<uint32>();
+        const sol::table mobData = mobEntry.second.as<sol::table>();
+
         auto* mob = new fishmob_t();
 
-        mob->mobId      = rset->get<uint32>("mobid");
-        mob->mobName    = rset->get<std::string>("name");
-        mob->level      = rset->get<uint8>("level");
-        mob->difficulty = rset->get<uint8>("difficulty");
-        mob->baseDelay  = rset->get<uint8>("base_delay");
-        mob->baseMove   = rset->get<uint8>("base_move");
-        mob->log        = rset->get<uint8>("log");
-        mob->quest      = rset->get<uint8>("quest");
-        mob->nm         = rset->get<bool>("nm");
-        mob->nmFlags    = rset->get<uint32>("nm_flags");
-        mob->rarity     = rset->get<uint16>("rarity");
-        mob->minRespawn = rset->get<uint16>("min_respawn");
-        mob->reqKeyItem = rset->get<uint16>("required_keyitem");
-        mob->reqBaitId  = rset->get<uint16>("required_baitid");
-        mob->areaId     = rset->get<uint8>("areaid");
-        mob->zoneId     = rset->get<uint16>("zoneid");
-        mob->questOnly  = rset->get<bool>("quest_only");
-        mob->minLength  = rset->get<uint16>("min_length");
-        mob->maxLength  = rset->get<uint16>("max_length");
-        mob->ranking    = rset->get<uint8>("ranking");
-        mob->maxRespawn = rset->get<uint16>("max_respawn");
-        mob->altBaitId  = rset->get<uint16>("alternative_baitid");
+        mob->mobId      = mobId;
+        mob->mobName    = mobData["name"].get_or<std::string>("");
+        mob->level      = mobData["level"].get_or<uint8>(0);
+        mob->difficulty = mobData["difficulty"].get_or<uint8>(0);
+        mob->baseDelay  = mobData["baseDelay"].get_or<uint8>(0);
+        mob->baseMove   = mobData["baseMove"].get_or<uint8>(0);
+        mob->log        = mobData["log"].get_or<uint8>(0);
+        mob->quest      = mobData["quest"].get_or<uint8>(0);
+        mob->nm         = mobData["nm"].get_or(false);
+        mob->nmFlags    = mobData["nmFlags"].get_or<uint32>(0);
+        mob->rarity     = mobData["rarity"].get_or<uint16>(0);
+        mob->minRespawn = mobData["minRespawn"].get_or<uint16>(0);
+        mob->reqKeyItem = mobData["requiredKeyItem"].get_or<uint16>(0);
+        mob->reqBaitId  = mobData["requiredBaitId"].get_or<uint16>(0);
+        mob->areaId     = mobData["areaId"].get_or<uint8>(0);
+        mob->zoneId     = mobData["zoneId"].get_or<uint16>(0);
+        mob->questOnly  = mobData["questOnly"].get_or(false);
+        mob->minLength  = mobData["minLength"].get_or<uint16>(0);
+        mob->maxLength  = mobData["maxLength"].get_or<uint16>(0);
+        mob->ranking    = mobData["ranking"].get_or<uint8>(0);
+        mob->maxRespawn = mobData["maxRespawn"].get_or<uint16>(0);
+        mob->altBaitId  = mobData["alternativeBaitId"].get_or<uint16>(0);
 
         FishZoneMobList[mob->zoneId][mob->mobId] = mob;
     }
 }
 
-void LoadFishingRods()
+void LoadFishingRods(const sol::table& rodTable)
 {
-    const auto rset = db::preparedStmt("SELECT rodid, name, material, size_type, "
-                                       "fish_attack, lgd_bonus_attack, fish_recovery, fish_time, "
-                                       "lgd_bonus_time, sm_delay_Bonus, sm_move_bonus, lg_delay_bonus, "
-                                       "lg_move_bonus, multiplier, breakable, broken_rodid, "
-                                       "mmm, flags, legendary, min_rank, max_rank "
-                                       "FROM fishing_rod");
-    FOR_DB_MULTIPLE_RESULTS(rset)
+    if (!rodTable.valid())
     {
+        ShowError("LoadFishingRods: missing rods table in fishing data");
+        return;
+    }
+
+    for (const auto& rodEntry : rodTable)
+    {
+        if (rodEntry.second.get_type() != sol::type::table)
+        {
+            continue;
+        }
+
+        const auto       rodId   = static_cast<uint16>(rodEntry.first.as<uint32>());
+        const sol::table rodData = rodEntry.second.as<sol::table>();
+
         auto* rod = new rod_t();
 
-        rod->rodID        = rset->get<uint16>("rodid");
-        rod->rodName      = rset->get<std::string>("name");
-        rod->material     = rset->get<uint8>("material");
-        rod->sizeType     = rset->get<uint8>("size_type");
-        rod->fishAttack   = rset->get<uint8>("fish_attack");
-        rod->lgdBonusAtk  = rset->get<uint8>("lgd_bonus_attack");
-        rod->fishRecovery = rset->get<uint8>("fish_recovery");
-        rod->fishTime     = rset->get<uint8>("fish_time");
-        rod->lgdBonusTime = rset->get<uint8>("lgd_bonus_time");
-        rod->smDelayBonus = rset->get<uint8>("sm_delay_Bonus");
-        rod->smMoveBonus  = rset->get<uint8>("sm_move_bonus");
-        rod->lgDelayBonus = rset->get<uint8>("lg_delay_bonus");
-        rod->lgMoveBonus  = rset->get<uint8>("lg_move_bonus");
-        rod->multiplier   = rset->get<uint8>("multiplier");
-        rod->breakable    = rset->get<bool>("breakable");
-        rod->brokenRodId  = rset->get<uint16>("broken_rodid");
-        rod->isMMM        = rset->get<bool>("mmm");
-        rod->rodFlags     = rset->get<uint32>("flags");
-        rod->legendary    = rset->get<bool>("legendary");
-        rod->minRank      = rset->get<uint16>("min_rank");
-        rod->maxRank      = rset->get<uint16>("max_rank");
+        rod->rodID        = rodId;
+        rod->rodName      = rodData["name"].get_or<std::string>("");
+        rod->material     = rodData["material"].get_or<uint8>(0);
+        rod->sizeType     = rodData["size_type"].get_or<uint8>(0);
+        rod->fishAttack   = rodData["fish_attack"].get_or<uint8>(0);
+        rod->lgdBonusAtk  = rodData["lgd_bonus_attack"].get_or<uint8>(0);
+        rod->fishRecovery = rodData["fish_recovery"].get_or<uint8>(0);
+        rod->fishTime     = rodData["fish_time"].get_or<uint8>(0);
+        rod->lgdBonusTime = rodData["lgd_bonus_time"].get_or<uint8>(0);
+        rod->smDelayBonus = rodData["sm_delay_bonus"].get_or<uint8>(0);
+        rod->smMoveBonus  = rodData["sm_move_bonus"].get_or<uint8>(0);
+        rod->lgDelayBonus = rodData["lg_delay_bonus"].get_or<uint8>(0);
+        rod->lgMoveBonus  = rodData["lg_move_bonus"].get_or<uint8>(0);
+        rod->multiplier   = rodData["multiplier"].get_or<uint8>(0);
+        rod->breakable    = rodData["breakable"].get_or(false);
+        rod->brokenRodId  = rodData["broken_rodid"].get_or<uint16>(0);
+        rod->isMMM        = rodData["mmm"].get_or(false);
+        rod->rodFlags     = rodData["flags"].get_or<uint32>(0);
+        rod->legendary    = rodData["legendary"].get_or(false);
+        rod->minRank      = rodData["min_rank"].get_or<uint16>(0);
+        rod->maxRank      = rodData["max_rank"].get_or<uint16>(0);
 
         FishingRods[rod->rodID] = rod;
     }
 }
 
-void LoadFishingBaits()
+void LoadFishingBaits(const sol::table& baitTable)
 {
-    const auto rset = db::preparedStmt("SELECT baitid, name, type, maxhook, "
-                                       "losable, flags, mmm, rankmod "
-                                       "FROM fishing_bait");
-    FOR_DB_MULTIPLE_RESULTS(rset)
+    if (!baitTable.valid())
     {
+        ShowError("LoadFishingBaits: missing baits table in fishing data");
+        return;
+    }
+
+    for (const auto& baitEntry : baitTable)
+    {
+        if (baitEntry.second.get_type() != sol::type::table)
+        {
+            continue;
+        }
+
+        const auto       baitId   = static_cast<uint16>(baitEntry.first.as<uint32>());
+        const sol::table baitData = baitEntry.second.as<sol::table>();
+
         auto* bait = new bait_t();
 
-        bait->baitID    = rset->get<uint16>("baitid");
-        bait->baitName  = rset->get<std::string>("name");
-        bait->baitType  = rset->get<uint8>("type");
-        bait->maxhook   = rset->get<uint8>("maxhook");
-        bait->losable   = rset->get<bool>("losable");
-        bait->baitFlags = rset->get<uint32>("flags");
-        bait->isMMM     = rset->get<bool>("mmm");
-        bait->rankMod   = rset->get<uint8>("rankmod");
+        bait->baitID    = baitId;
+        bait->baitName  = baitData["name"].get_or<std::string>("");
+        bait->baitType  = baitData["type"].get_or<uint8>(0);
+        bait->maxhook   = baitData["maxHook"].get_or<uint8>(0);
+        bait->losable   = baitData["losable"].get_or(true);
+        bait->baitFlags = baitData["flags"].get_or<uint32>(0);
+        bait->isMMM     = baitData["mmm"].get_or(false);
+        bait->rankMod   = baitData["rankMod"].get_or<uint8>(0);
 
         FishingBaits[bait->baitID] = bait;
     }
 }
 
-void LoadFishingBaitAffinities()
+void LoadFishingBaitAffinities(const sol::table& affinityTable)
 {
-    const auto rset = db::preparedStmt("SELECT baitid, fishid, power "
-                                       "FROM fishing_bait_affinity");
-    FOR_DB_MULTIPLE_RESULTS(rset)
+    if (!affinityTable.valid())
     {
-        FishingBaitAffinities[rset->get<uint16>("baitid")]
-                             [rset->get<uint32>("fishid")] = rset->get<uint8>("power");
+        ShowError("LoadFishingBaitAffinities: missing bait affinities table in fishing data");
+        return;
+    }
+
+    for (const auto& baitEntry : affinityTable)
+    {
+        if (baitEntry.second.get_type() != sol::type::table)
+        {
+            continue;
+        }
+
+        const auto       baitId    = static_cast<uint16>(baitEntry.first.as<uint32>());
+        const sol::table fishTable = baitEntry.second.as<sol::table>();
+
+        for (const auto& fishEntry : fishTable)
+        {
+            FishingBaitAffinities[baitId][fishEntry.first.as<uint32>()] = fishEntry.second.as<uint8>();
+        }
     }
 }
 
-void LoadFishGroups()
+void LoadFishGroups(const sol::table& groupTable)
 {
-    const auto rset = db::preparedStmt("SELECT groupid, fishid, rarity "
-                                       "FROM fishing_group");
-    FOR_DB_MULTIPLE_RESULTS(rset)
+    if (!groupTable.valid())
     {
-        const auto groupId             = rset->get<uint16>("groupid");
-        const auto fishId              = rset->get<uint32>("fishid");
-        FishingGroups[groupId][fishId] = rset->get<uint16>("rarity");
+        ShowError("LoadFishGroups: missing groups table in fishing data");
+        return;
+    }
+
+    for (const auto& groupEntry : groupTable)
+    {
+        if (groupEntry.second.get_type() != sol::type::table)
+        {
+            continue;
+        }
+
+        const auto       groupId   = static_cast<uint16>(groupEntry.first.as<uint32>());
+        const sol::table fishGroup = groupEntry.second.as<sol::table>();
+
+        for (const auto& fishEntry : fishGroup)
+        {
+            if (fishEntry.second.get_type() != sol::type::table)
+            {
+                continue;
+            }
+
+            const auto       fishId       = fishEntry.first.as<uint32>();
+            const sol::table fishData     = fishEntry.second.as<sol::table>();
+            auto&            groupMember  = FishingGroups[groupId][fishId];
+
+            groupMember.rarity      = fishData["rarity"].get_or<uint16>(0);
+            groupMember.poolSize    = fishData["poolSize"].get_or<uint16>(0);
+            groupMember.restockRate = fishData["restockRate"].get_or<uint16>(0);
+        }
     }
 }
 
-void LoadFishingCatchLists()
+void LoadFishingCatchLists(const sol::table& catchTable)
 {
-    const auto rset = db::preparedStmt("SELECT zoneid, areaid, groupid "
-                                       "FROM fishing_catch");
-    FOR_DB_MULTIPLE_RESULTS(rset)
+    if (!catchTable.valid())
     {
-        const auto zoneId = rset->get<uint16>("zoneid");
-        const auto areaId = rset->get<uint8>("areaid");
+        ShowError("LoadFishingCatchLists: missing catches table in fishing data");
+        return;
+    }
 
-        FishingCatchLists[zoneId][areaId] = rset->get<uint16>("groupid");
+    for (const auto& zoneEntry : catchTable)
+    {
+        if (zoneEntry.second.get_type() != sol::type::table)
+        {
+            continue;
+        }
+
+        const auto       zoneId    = static_cast<uint16>(zoneEntry.first.as<uint32>());
+        const sol::table areaTable = zoneEntry.second.as<sol::table>();
+
+        for (const auto& areaEntry : areaTable)
+        {
+            const auto areaId  = static_cast<uint8>(areaEntry.first.as<uint32>());
+            const auto groupId = static_cast<uint16>(areaEntry.second.as<uint32>());
+
+            FishingCatchLists[zoneId][areaId] = groupId;
+        }
     }
 }
 
 void InitializeFishingSystem()
 {
     LoadFishingMessages();
-    LoadFishItems();
-    LoadFishMobs();
-    LoadFishingRods();
-    LoadFishingBaits();
-    LoadFishingBaitAffinities();
-    LoadFishingAreas();
-    LoadFishGroups();
-    LoadFishingCatchLists();
+    const auto fishingData = luautils::GetFishingData();
+
+    if (!fishingData.valid())
+    {
+        ShowError("InitializeFishingSystem: failed to load fishing data from Lua");
+        return;
+    }
+
+    const sol::table fishTable         = fishingData["fish"];
+    const sol::table mobTable          = fishingData["mobs"];
+    const sol::table rodTable          = fishingData["rods"];
+    const sol::table baitTable         = fishingData["baits"];
+    const sol::table affinityTable     = fishingData["baitAffinities"];
+    const sol::table areaTable         = fishingData["areas"];
+    const sol::table groupTable        = fishingData["groups"];
+    const sol::table catchTable        = fishingData["catches"];
+
+    LoadFishItems(fishTable);
+    LoadFishMobs(mobTable);
+    LoadFishingRods(rodTable);
+    LoadFishingBaits(baitTable);
+    LoadFishingBaitAffinities(affinityTable);
+    LoadFishingAreas(areaTable);
+    LoadFishGroups(groupTable);
+    LoadFishingCatchLists(catchTable);
     CreateFishingPools();
 }
 

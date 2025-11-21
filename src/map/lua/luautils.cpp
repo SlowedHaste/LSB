@@ -5584,12 +5584,28 @@ CBaseEntity* GenerateDynamicEntity(CZone* PZone, CInstance* PInstance, sol::tabl
             cacheEntry["onMobDeath"] = lua.safe_script("return function() end");
         }
 
-        PZone->InsertMOB(PMob);
+    PZone->InsertMOB(PMob);
     }
 
     PEntity->updatemask |= UPDATE_ALL_CHAR;
 
     return PEntity;
+}
+
+auto GetFishingData() -> sol::table
+{
+    const std::string filename = "./scripts/globals/fishing/data.lua";
+
+    CacheLuaObjectFromFile(filename);
+    auto fishingData = GetCacheEntryFromFilename(filename);
+
+    if (!fishingData.valid())
+    {
+        ShowError("luautils::GetFishingData: could not load %s", filename.c_str());
+        return sol::lua_nil;
+    }
+
+    return fishingData;
 }
 
 // Fishing Contest utilities
