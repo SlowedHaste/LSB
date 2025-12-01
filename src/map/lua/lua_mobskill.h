@@ -46,6 +46,8 @@ public:
     uint8  getMobHPP();
     uint16 getID();
     int16  getParam();
+    auto   getScriptParam(const std::string& key, const sol::object& defaultValue) -> sol::object;
+    auto   getParams() -> sol::table;
     bool   isAoE();
     bool   isConal();
     bool   isSingle();

@@ -23,12 +23,14 @@
 #define _BATTLEENTITY_H
 
 #include <set>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
 #include "alliance.h"
 #include "baseentity.h"
 #include "enums/msg_basic.h"
+#include "mobskill_param.h"
 #include "modifier.h"
 #include "party.h"
 #include "trait.h"
@@ -526,6 +528,9 @@ public:
     void   setBattleID(uint16 battleID);
     uint16 getBattleID();
 
+    void setPendingMobSkillParams(MobSkillParamMap params);
+    auto consumePendingMobSkillParams() -> std::optional<MobSkillParamMap>;
+
     virtual void Tick(timer::time_point) override;
     virtual void PostTick() override;
 
@@ -544,6 +549,7 @@ public:
     CItemEquipment* m_Weapons[4]{}; // Four main slots used to store weapons (weapons only)
     bool            m_dualWield;    // True/false depending on if the entity is using two weapons
     DEATH_TYPE      m_DeathType;
+    std::optional<MobSkillParamMap> m_pendingMobSkillParams;
 
     TraitList_t TraitList;
 

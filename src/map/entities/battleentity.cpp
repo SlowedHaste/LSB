@@ -3077,6 +3077,23 @@ uint16 CBattleEntity::getBattleID()
     return m_battleID;
 }
 
+void CBattleEntity::setPendingMobSkillParams(MobSkillParamMap params)
+{
+    m_pendingMobSkillParams = std::move(params);
+}
+
+auto CBattleEntity::consumePendingMobSkillParams() -> std::optional<MobSkillParamMap>
+{
+    if (!m_pendingMobSkillParams)
+    {
+        return std::nullopt;
+    }
+
+    auto params = std::move(m_pendingMobSkillParams);
+    m_pendingMobSkillParams.reset();
+    return params;
+}
+
 void CBattleEntity::Tick(timer::time_point /*unused*/)
 {
     TracyZoneScoped;

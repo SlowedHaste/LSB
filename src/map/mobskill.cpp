@@ -426,7 +426,32 @@ auto CMobSkill::isCritical() const -> bool
     return m_isCritical;
 }
 
+auto CMobSkill::getScriptParam(const std::string& key) const -> std::optional<MobSkillParamValue>
+{
+    if (auto it = m_scriptParams.find(key); it != m_scriptParams.end())
+    {
+        return it->second;
+    }
+
+    return std::nullopt;
+}
+
+auto CMobSkill::getScriptParams() const -> const MobSkillParamMap&
+{
+    return m_scriptParams;
+}
+
 void CMobSkill::setCritical(const bool isCritical)
 {
     m_isCritical = isCritical;
+}
+
+void CMobSkill::setScriptParams(const MobSkillParamMap& params)
+{
+    m_scriptParams = params;
+}
+
+void CMobSkill::clearScriptParams()
+{
+    m_scriptParams.clear();
 }

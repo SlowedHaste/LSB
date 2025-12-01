@@ -64,6 +64,15 @@ CMobSkillState::CMobSkillState(CBattleEntity* PEntity, uint16 targid, uint16 wsi
 
     m_PSkill = std::make_unique<CMobSkill>(*skill);
 
+    if (auto pendingParams = m_PEntity->consumePendingMobSkillParams())
+    {
+        m_PSkill->setScriptParams(*pendingParams);
+    }
+    else
+    {
+        m_PSkill->clearScriptParams();
+    }
+
     if (castTimeOverride.has_value())
     {
         m_castTime = castTimeOverride.value();

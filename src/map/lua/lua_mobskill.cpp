@@ -21,6 +21,7 @@
 
 #include "common/logging.h"
 
+#include "lua/luautils.h"
 #include "lua_mobskill.h"
 #include "mobskill.h"
 
@@ -117,6 +118,36 @@ int16 CLuaMobSkill::getParam()
     return m_PLuaMobSkill->getParam();
 }
 
+auto CLuaMobSkill::getScriptParam(const std::string& key, const sol::object& defaultValue) -> sol::object
+{
+    sol::state_view luaState(luautils::lua);
+    auto            param = m_PLuaMobSkill->getScriptParam(key);
+
+    if (!param)
+    {
+        if (defaultValue == sol::lua_nil)
+        {
+            return sol::make_object(luaState, sol::lua_nil);
+        }
+
+        return defaultValue;
+    }
+
+    return std::visit([&](auto&& value) { return sol::make_object(luaState, value); }, *param);
+}
+
+auto CLuaMobSkill::getParams() -> sol::table
+{
+    sol::table paramTable = luautils::lua.create_table();
+
+    for (const auto& [key, value] : m_PLuaMobSkill->getScriptParams())
+    {
+        std::visit([&](auto&& entry) { paramTable[key] = entry; }, value);
+    }
+
+    return paramTable;
+}
+
 /*************************************************************************
 
             get the TP for calculations
@@ -177,6 +208,8 @@ void CLuaMobSkill::Register()
     SOL_REGISTER("isConal", CLuaMobSkill::isConal);
     SOL_REGISTER("isSingle", CLuaMobSkill::isSingle);
     SOL_REGISTER("getParam", CLuaMobSkill::getParam);
+    SOL_REGISTER("getScriptParam", CLuaMobSkill::getScriptParam);
+    SOL_REGISTER("getParams", CLuaMobSkill::getParams);
     SOL_REGISTER("getID", CLuaMobSkill::getID);
     SOL_REGISTER("getTargets", CLuaMobSkill::getTargets);
     SOL_REGISTER("getTotalTargets", CLuaMobSkill::getTotalTargets);

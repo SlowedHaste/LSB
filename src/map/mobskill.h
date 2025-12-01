@@ -27,7 +27,9 @@
 #include "entities/mobentity.h"
 #include "enums/action/animation.h"
 #include "enums/action/knockback.h"
+#include "mobskill_param.h"
 
+#include <optional>
 #include <vector>
 
 class CBattleEntity;
@@ -94,6 +96,8 @@ public:
     uint8           getTertiarySkillchain() const;
     auto            getAttackType() const -> ATTACK_TYPE;
     auto            isCritical() const -> bool;
+    auto            getScriptParam(const std::string& key) const -> std::optional<MobSkillParamValue>;
+    auto            getScriptParams() const -> const MobSkillParamMap&;
 
     bool isDamageMsg() const;
 
@@ -121,6 +125,8 @@ public:
     void setTertiarySkillchain(uint8 skillchain);
     void setAttackType(ATTACK_TYPE attackType);
     void setCritical(bool isCritical);
+    void setScriptParams(const MobSkillParamMap& params);
+    void clearScriptParams();
 
     const std::string& getName();
     void               setName(const std::string& name);
@@ -148,6 +154,7 @@ private:
     uint8           m_tertiarySkillchain;
     ATTACK_TYPE     m_attackType{ ATTACK_TYPE::NONE };
     bool            m_isCritical{ false };
+    MobSkillParamMap m_scriptParams;
 
     std::optional<uint8> m_FinalAnimationSub; // If non-null, entity will get this new animation sub after state exits
 

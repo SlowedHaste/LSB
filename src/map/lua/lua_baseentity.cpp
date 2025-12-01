@@ -18150,6 +18150,39 @@ void CLuaBaseEntity::useMobAbility(sol::variadic_args va)
     CBattleEntity* PTarget{ nullptr };
     auto*          PMobSkill{ battleutils::GetMobSkill(skillid) };
 
+    auto parseParamTable = [](const sol::table& table) -> MobSkillParamMap
+    {
+        MobSkillParamMap params;
+
+        for (const auto& kvp : table)
+        {
+            if (kvp.first.get_type() != sol::type::string)
+            {
+                continue;
+            }
+
+            const auto key = kvp.first.as<std::string>();
+            const auto& valueObj = kvp.second;
+
+            switch (valueObj.get_type())
+            {
+                case sol::type::number:
+                    params[key] = valueObj.as<double>();
+                    break;
+                case sol::type::boolean:
+                    params[key] = valueObj.as<bool>();
+                    break;
+                case sol::type::string:
+                    params[key] = valueObj.as<std::string>();
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        return params;
+    };
+
     if (!PMobSkill)
     {
         return;
@@ -18179,8 +18212,21 @@ void CLuaBaseEntity::useMobAbility(sol::variadic_args va)
         }
     }
 
+    std::optional<MobSkillParamMap> scriptParams;
+    for (size_t i = 0; i < va.size(); ++i)
+    {
+        if (va.get_type(i) == sol::type::table)
+        {
+            auto params = parseParamTable(va.get<sol::table>(i));
+            if (!params.empty())
+            {
+                scriptParams = std::move(params);
+            }
+        }
+    }
+
     // clang-format off
-    m_PBaseEntity->PAI->QueueAction(queueAction_t(0ms, true, [PTarget, skillid, PMobSkill, castTimeOverride, ignoreDistance](auto PEntity)
+    m_PBaseEntity->PAI->QueueAction(queueAction_t(0ms, true, [PTarget, skillid, PMobSkill, castTimeOverride, ignoreDistance, scriptParams](auto PEntity)
     {
         auto mobObj = dynamic_cast<CMobEntity*>(PEntity);
 
@@ -18190,6 +18236,10 @@ void CLuaBaseEntity::useMobAbility(sol::variadic_args va)
             float currentDistance = distance(mobObj->loc.p, PTarget->loc.p);
             if (ignoreDistance || currentDistance <= PMobSkill->getDistance())
             {
+                if (auto* battleEntity = dynamic_cast<CBattleEntity*>(PEntity))
+                {
+                    battleEntity->setPendingMobSkillParams(scriptParams.value_or(MobSkillParamMap{}));
+                }
                 PEntity->PAI->MobSkill(PTarget->targid, skillid, castTimeOverride);
             }
         }
@@ -18205,12 +18255,20 @@ void CLuaBaseEntity::useMobAbility(sol::variadic_args va)
                     float currentDistance = distance(mobObj->loc.p, defaultTarget->loc.p);
                     if (ignoreDistance || currentDistance <= PMobSkill->getDistance())
                     {
+                        if (auto* battleEntity = dynamic_cast<CBattleEntity*>(PEntity))
+                        {
+                            battleEntity->setPendingMobSkillParams(scriptParams.value_or(MobSkillParamMap{}));
+                        }
                         PEntity->PAI->MobSkill(defaultTarget->targid, skillid, castTimeOverride);
                     }
                 }
             }
             else if (PMobSkill->getValidTargets() & TARGET_SELF)
             {
+                if (auto* battleEntity = dynamic_cast<CBattleEntity*>(PEntity))
+                {
+                    battleEntity->setPendingMobSkillParams(scriptParams.value_or(MobSkillParamMap{}));
+                }
                 PEntity->PAI->MobSkill(PEntity->targid, skillid, castTimeOverride);
             }
         }
