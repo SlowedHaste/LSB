@@ -24,7 +24,7 @@
 
 #include "common/cbasetypes.h"
 #include "luautils.h"
-#include "packets/quest_mission_log.h"
+#include "enums/mission_log.h"
 #include "packets/s2c/0x009_message.h"
 #include "utils/battleutils.h"
 #include "utils/charutils.h"
