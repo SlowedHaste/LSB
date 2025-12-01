@@ -632,6 +632,34 @@ auto LoadChar(const uint32 charId) -> std::unique_ptr<CCharEntity>
         std::memcpy(&PChar->mainlook, &PChar->look, sizeof(PChar->look));
     }
 
+    // Model size doesn't matter here per caps, only race
+    // From the packets, size is 4/3/8 as integer
+    // For distance purposes, these are divided by 10
+    switch (static_cast<CharRace>(PChar->look.race))
+    {
+        case CharRace::HumeMale:
+        case CharRace::HumeFemale:
+            PChar->modelHitboxSize = 4.0f / 10.0f;
+            break;
+        case CharRace::ElvaanMale:
+        case CharRace::ElvaanFemale:
+            PChar->modelHitboxSize = 4.0f / 10.0f;
+            break;
+        case CharRace::TarutaruMale:
+        case CharRace::TarutaruFemale:
+            PChar->modelHitboxSize = 3.0f / 10.0f;
+            break;
+        case CharRace::Mithra:
+            PChar->modelHitboxSize = 4.0f / 10.0f;
+            break;
+        case CharRace::Galka:
+            PChar->modelHitboxSize = 8.0f / 10.0f;
+            break;
+        default:
+            PChar->modelHitboxSize = 4.0f / 10.0f;
+            break;
+    }
+
     // LoadFromCharStyleSQL
     fmtQuery = "SELECT head, body, hands, legs, feet, main, sub, ranged FROM char_style WHERE charid = ?";
     rset     = db::preparedStmt(fmtQuery, PChar->id);
@@ -3323,16 +3351,11 @@ void BuildingCharWeaponSkills(CCharEntity* PChar)
 {
     std::memset(&PChar->m_WeaponSkills, 0, sizeof(PChar->m_WeaponSkills));
 
-    CItemWeapon* PItem        = nullptr;
-    int          main_ws      = 0;
-    int          range_ws     = 0;
-    int          main_ws_dyn  = 0;
-    int          range_ws_dyn = 0;
+    CItemWeapon* PItem    = nullptr;
+    int          main_ws  = 0;
+    int          range_ws = 0;
 
-    bool isInDynamis = PChar->isInDynamis();
-
-    for (auto&& slot :
-         { std::make_tuple(SLOT_MAIN, std::ref(main_ws), std::ref(main_ws_dyn)), std::make_tuple(SLOT_RANGED, std::ref(range_ws), std::ref(range_ws_dyn)) })
+    for (auto&& slot : { std::make_tuple(SLOT_MAIN, std::ref(main_ws)), std::make_tuple(SLOT_RANGED, std::ref(range_ws)) })
     {
         if (PChar->m_Weapons[std::get<0>(slot)])
         {
@@ -3342,7 +3365,6 @@ void BuildingCharWeaponSkills(CCharEntity* PChar)
             if (PItem && (!PItem->isUnlockable() || PItem->isUnlocked()))
             {
                 std::get<1>(slot) = battleutils::GetScaledItemModifier(PChar, PItem, Mod::ADDS_WEAPONSKILL);
-                std::get<2>(slot) = battleutils::GetScaledItemModifier(PChar, PItem, Mod::ADDS_WEAPONSKILL_DYN);
             }
         }
     }
@@ -3354,7 +3376,7 @@ void BuildingCharWeaponSkills(CCharEntity* PChar)
     const auto& MeleeWeaponSkillList = battleutils::GetWeaponSkills(skill);
     for (auto&& PSkill : MeleeWeaponSkillList)
     {
-        if (battleutils::CanUseWeaponskill(PChar, PSkill) || PSkill->getID() == main_ws || (isInDynamis && (PSkill->getID() == main_ws_dyn)))
+        if (battleutils::CanUseWeaponskill(PChar, PSkill) || PSkill->getID() == main_ws)
         {
             addWeaponSkill(PChar, PSkill->getID());
         }
@@ -3368,7 +3390,7 @@ void BuildingCharWeaponSkills(CCharEntity* PChar)
         const auto& RangedWeaponSkillList = battleutils::GetWeaponSkills(skill);
         for (auto&& PSkill : RangedWeaponSkillList)
         {
-            if ((battleutils::CanUseWeaponskill(PChar, PSkill)) || PSkill->getID() == range_ws || (isInDynamis && (PSkill->getID() == range_ws_dyn)))
+            if ((battleutils::CanUseWeaponskill(PChar, PSkill)) || PSkill->getID() == range_ws)
             {
                 addWeaponSkill(PChar, PSkill->getID());
             }
@@ -6582,48 +6604,6 @@ uint8 getQuestStatus(CCharEntity* PChar, uint8 log, uint8 quest)
     return (complete != 0 ? 2 : (current != 0 ? 1 : 0));
 }
 
-uint16 AvatarPerpetuationReduction(CCharEntity* PChar)
-{
-    TracyZoneScoped;
-
-    // REMEMBER:
-    // Elements start at 0 and the 0th element is ELEMENT_NONE
-    // Weather starts at 0 and the 0th weather is WEATHER_NONE
-    // Days start at 0 and the 0th day is Firesday
-    // Affinity starts at 0 and the 0th affinity is FIRE_AFFINITY
-    // petElement and petElementIdx exist to bridge these gaps here!
-
-    auto*   PPet             = static_cast<CPetEntity*>(PChar->PPet);
-    ELEMENT petElement       = static_cast<ELEMENT>(PPet->m_Element);
-    uint8   petElementIdx    = static_cast<uint8>(petElement) - 1;
-    ELEMENT dayElement       = battleutils::GetDayElement();
-    auto    weather          = battleutils::GetWeather(PChar, false);
-    int16   perpReduction    = PChar->getMod(Mod::PERPETUATION_REDUCTION);
-    int16   dayReduction     = PChar->getMod(Mod::DAY_REDUCTION);     // As seen on Summoner's Doublet (Depending On Day: Avatar perpetuation cost -3) etc.
-    int16   weatherReduction = PChar->getMod(Mod::WEATHER_REDUCTION); // As seen on Summoner's Horn (Weather: Avatar perpetuation cost -3) etc.
-
-    static const Mod strong[8] = { Mod::FIRE_AFFINITY_PERP, Mod::ICE_AFFINITY_PERP, Mod::WIND_AFFINITY_PERP, Mod::EARTH_AFFINITY_PERP, Mod::THUNDER_AFFINITY_PERP, Mod::WATER_AFFINITY_PERP, Mod::LIGHT_AFFINITY_PERP, Mod::DARK_AFFINITY_PERP };
-
-    static const Weather weatherStrong[8] = { Weather::HotSpell, Weather::Snow, Weather::Wind, Weather::DustStorm, Weather::Thunder, Weather::Rain, Weather::Auroras, Weather::Gloom };
-
-    // If you wear a fire staff, you have +2 perp affinity reduction for fire, but -2 for ice as mods.
-    perpReduction += PChar->getMod(strong[petElementIdx]);
-
-    // Compare day element and pet element (both ELEMENT, both 0-based)
-    if (dayElement == petElement)
-    {
-        perpReduction += dayReduction;
-    }
-
-    // Match against both tier of weather for element
-    if (weather == weatherStrong[petElementIdx] || weather == static_cast<Weather>(static_cast<uint16_t>(weatherStrong[petElementIdx]) + 1))
-    {
-        perpReduction += weatherReduction;
-    }
-
-    return static_cast<uint16>(perpReduction);
-}
-
 /************************************************************************
  *                                                                       *
  *  Record now as when the character has died and save it to the db.     *
@@ -6771,6 +6751,14 @@ auto CheckAbilityAddtype(CCharEntity* PChar, const CAbility* PAbility) -> bool
         }
     }
     return true;
+}
+
+void RemoveInvisible(const CCharEntity* PChar)
+{
+    if (PChar && PChar->StatusEffectContainer)
+    {
+        PChar->StatusEffectContainer->DelStatusEffectsByFlag(EFFECTFLAG_INVISIBLE);
+    }
 }
 
 void RemoveStratagems(CCharEntity* PChar, CSpell* PSpell)
@@ -8062,6 +8050,26 @@ bool raceChange(CCharEntity* PChar, CharRace newRace, CharFace newFace, CharSize
 
     ForceRezone(PChar);
     return true;
+}
+
+void ApplyAbilityRecast(CCharEntity* PChar, const CAbility* PAbility, const Charge_t* charge, const timer::duration baseChargeTime, const timer::duration recastTime)
+{
+    if (charge)
+    {
+        PChar->PRecastContainer->Add(RECAST_ABILITY, PAbility->getRecastId(), recastTime, baseChargeTime, charge->maxCharges);
+    }
+    else
+    {
+        PChar->PRecastContainer->Add(RECAST_ABILITY, PAbility->getRecastId(), recastTime);
+    }
+
+    const uint16 recastId = PAbility->getRecastId();
+    if (settings::get<bool>("map.BLOOD_PACT_SHARED_TIMER") && (recastId == 173 || recastId == 174))
+    {
+        PChar->PRecastContainer->Add(RECAST_ABILITY, (recastId == 173 ? 174 : 173), recastTime);
+    }
+
+    PChar->pushPacket<GP_SERV_COMMAND_ABIL_RECAST>(PChar);
 }
 
 }; // namespace charutils

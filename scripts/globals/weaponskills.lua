@@ -83,7 +83,7 @@ local function getMultiAttacks(attacker, target, wsParams, firstHit, offHand)
         bonusHits = bonusHits + 1
     elseif firstHit and math.random(1, 100) <= oaThriceRate then -- Can only proc on first hit
         bonusHits = bonusHits + 2
-    elseif firstHit and math.random(1, 100) <= oaTwiceRate then -- Can only proc on first hit
+    elseif firstHit and math.random(1, 100) <= oaTwiceRate then  -- Can only proc on first hit
         bonusHits = bonusHits + 1
     end
 
@@ -106,41 +106,12 @@ local function getMultiAttacks(attacker, target, wsParams, firstHit, offHand)
     return numHits
 end
 
+---@param attacker CBaseEntity
+---@param target CBaseEntity
+---@param bonus number
+---@return number
 xi.weaponskills.getRangedHitRate = function(attacker, target, bonus)
-    local acc = attacker:getRACC()
-    local eva = target:getEVA()
-
-    if bonus == nil then
-        bonus = 0
-    end
-
-    if
-        target:hasStatusEffect(xi.effect.YONIN) and
-        target:isFacing(attacker, 23)
-    then
-        -- Yonin evasion boost if defender is facing attacker
-        bonus = bonus - target:getStatusEffect(xi.effect.YONIN):getPower()
-    end
-
-    if attacker:hasTrait(xi.trait.AMBUSH) and attacker:isBehind(target, 23) then
-        bonus = bonus + attacker:getMerit(xi.merit.AMBUSH)
-    end
-
-    acc = acc + bonus
-
-    if attacker:getMainLvl() > target:getMainLvl() then -- acc bonus
-        acc = acc + (attacker:getMainLvl() - target:getMainLvl()) * 4
-    elseif attacker:getMainLvl() < target:getMainLvl() then -- acc penalty
-        acc = acc - (target:getMainLvl() - attacker:getMainLvl()) * 4
-    end
-
-    local hitdiff = (acc - eva) / 2 -- no need to check if eva is hier or lower than acc it will be negative if eva is higher and positive if acc is higher
-    local hitrate = (75 + hitdiff) / 100
-
-    -- Applying hitrate caps
-    hitrate = utils.clamp(hitrate, 0.2, 0.95)
-
-    return hitrate
+    return xi.combat.physicalHitRate.getRangedHitRate(attacker, target, bonus, true)
 end
 
 -- Function to calculate if a hit in a WS misses, criticals, and the respective damage done
@@ -188,16 +159,6 @@ local function getSingleHitDamage(attacker, target, dmg, ftp, wsParams, calcPara
         return hitDamage, calcParams
     end
 
-    -- check guard
-    if
-        calcParams.attackType == xi.attackType.PHYSICAL and
-        not calcParams.guaranteedHit and
-        xi.combat.physical.isGuarded(target, attacker)
-    then
-        -- guarded logic
-        return hitDamage, calcParams
-    end
-
     local critChance = math.random() -- See if we land a critical hit
     criticalHit = (wsParams.critVaries and critChance <= calcParams.critRate) or
         calcParams.forcedFirstCrit or
@@ -218,6 +179,15 @@ local function getSingleHitDamage(attacker, target, dmg, ftp, wsParams, calcPara
     -- handle blocking and reduce the hit damage if needed
     if xi.combat.physical.isBlocked(target, attacker) then
         hitDamage = hitDamage - xi.combat.physical.getDamageReductionForBlock(target, attacker, hitDamage)
+    end
+
+    -- handle guard and reduce the hit damage if needed
+    if
+        calcParams.attackType == xi.attackType.PHYSICAL and
+        xi.combat.physical.isGuarded(target, attacker)
+    then
+        calcParams.pdif        = math.max(calcParams.pdif - 1.0, 0)
+        calcParams.guardedHits = calcParams.guardedHits + 1
     end
 
     calcParams.hitsLanded = calcParams.hitsLanded + 1
@@ -281,11 +251,12 @@ local function calculateHybridMagicDamage(tp, physicaldmg, attacker, target, wsP
     magicdmg = math.floor(addBonusesAbility(attacker, wsParams.ele, target, magicdmg, wsParams))
     magicdmg = math.floor(magicdmg + calcParams.bonusfTP * physicaldmg)
     magicdmg = math.floor(magicdmg * xi.combat.magicHitRate.calculateResistRate(attacker, target, 0, wsParams.skill, 0, wsParams.ele, 0, 0, calcParams.bonusAcc))
-    magicdmg = math.floor(magicdmg * xi.spells.damage.calculateTMDA(target, wsParams.ele))
+    magicdmg = math.floor(magicdmg * xi.spells.damage.calculateDamageAdjustment(target, false, true, false, false))
     magicdmg = math.floor(target:handleSevereDamage(magicdmg, false))
 
     if magicdmg > 0 then
-        magicdmg = math.floor(magicdmg * xi.spells.damage.calculateNukeAbsorbOrNullify(target, wsParams.ele))
+        magicdmg = math.floor(magicdmg * xi.spells.damage.calculateAbsorption(target, wsParams.ele, true))
+        magicdmg = math.floor(magicdmg * xi.spells.damage.calculateNullification(target, wsParams.ele, true, false))
     end
 
     if magicdmg > 0 then -- handle nonzero damage if previous function does not absorb or nullify
@@ -367,6 +338,7 @@ xi.weaponskills.calculateRawWSDmg = function(attacker, target, wsID, tp, action,
     calcParams.shadowsAbsorbed    = 0
     calcParams.mainhandHitsLanded = 0
     calcParams.offhandHitsLanded  = 0
+    calcParams.guardedHits        = 0
 
     -- Get ammo information
     if isRanged and attacker:isPC() then
@@ -415,7 +387,7 @@ xi.weaponskills.calculateRawWSDmg = function(attacker, target, wsID, tp, action,
     calcParams.mainHitsLanded = calcParams.tpHitsLanded
     -- Finish first/mainhand hit
 
-    local numMainHandMultis = getMultiAttacks(attacker, target, wsParams, true, false)
+    local numMainHandMultis = isRanged and 0 or getMultiAttacks(attacker, target, wsParams, true, false)
     local numOffhandMultis  = 0
     local numMultiProcs     = numMainHandMultis > 0 and 1 or 0
 
@@ -510,7 +482,7 @@ xi.weaponskills.calculateRawWSDmg = function(attacker, target, wsID, tp, action,
 
         -- Check each hit for multis, but stop after we get 2 multi procs
         if numMultiProcs < 2 then
-            local extraMultis = getMultiAttacks(attacker, target, wsParams, false, false)
+            local extraMultis = isRanged and 0 or getMultiAttacks(attacker, target, wsParams, false, false)
             numMainHandMultis = numMainHandMultis + extraMultis
             numMultiProcs     = extraMultis > 0 and numMultiProcs + 1 or numMultiProcs
         end
@@ -681,7 +653,7 @@ xi.weaponskills.doPhysicalWeaponskill = function(attacker, target, wsID, wsParam
         ['type']       = xi.attackType.PHYSICAL,
         ['slot']       = xi.slot.MAIN,
         ['weaponType'] = attacker:getWeaponSkillType(xi.slot.MAIN),
-        ['damageType'] = attacker:getWeaponDamageType(xi.slot.MAIN)
+        ['damageType'] = attacker:getWeaponDamageType(xi.slot.MAIN),
     }
 
     local calcParams = {}
@@ -761,7 +733,7 @@ xi.weaponskills.doRangedWeaponskill = function(attacker, target, wsID, wsParams,
         ['type']       = xi.attackType.RANGED,
         ['slot']       = xi.slot.RANGED,
         ['weaponType'] = attacker:getWeaponSkillType(xi.slot.RANGED),
-        ['damageType'] = attacker:getWeaponDamageType(xi.slot.RANGED)
+        ['damageType'] = attacker:getWeaponDamageType(xi.slot.RANGED),
     }
 
     local calcParams =
@@ -786,7 +758,7 @@ xi.weaponskills.doRangedWeaponskill = function(attacker, target, wsID, wsParams,
         bonusfTP                = gearFTP,
         bonusAcc                = gearAcc + attacker:getMod(xi.mod.WSACC),
         bonusWSmods             = wsParams.bonusWSmods or 0,
-        attackType              = xi.attackType.RANGED
+        attackType              = xi.attackType.RANGED,
     }
     if wsParams.accVaries then
         -- applied to all hits (This is a penalty!)
@@ -851,7 +823,7 @@ xi.weaponskills.doMagicWeaponskill = function(attacker, target, wsID, wsParams, 
         ['tpHitsLanded']    = 1,
         ['extraHitsLanded'] = 0,
         ['bonusTP']         = wsParams.bonusTP or 0,
-        ['wsID']            = wsID
+        ['wsID']            = wsID,
     }
 
     local gearFTP = xi.combat.physical.calculateFTPBonus(attacker)
@@ -890,7 +862,7 @@ xi.weaponskills.doMagicWeaponskill = function(attacker, target, wsID, wsParams, 
         -- Calculate magical bonuses and reductions
         dmg = math.floor(addBonusesAbility(attacker, wsParams.ele, target, dmg, wsParams))
         dmg = math.floor(dmg * xi.combat.magicHitRate.calculateResistRate(attacker, target, 0, wsParams.skill, 0, wsParams.ele, 0, 0, gearAcc))
-        dmg = math.floor(dmg * xi.spells.damage.calculateTMDA(target, wsParams.ele))
+        dmg = math.floor(dmg * xi.spells.damage.calculateDamageAdjustment(target, false, true, false, false))
         dmg = math.floor(target:handleSevereDamage(dmg, false))
 
         if dmg < 0 then
@@ -900,7 +872,8 @@ xi.weaponskills.doMagicWeaponskill = function(attacker, target, wsID, wsParams, 
             return dmg
         end
 
-        dmg = dmg * xi.spells.damage.calculateNukeAbsorbOrNullify(target, wsParams.ele)
+        dmg = dmg * xi.spells.damage.calculateAbsorption(target, wsParams.ele, true)
+        dmg = dmg * xi.spells.damage.calculateNullification(target, wsParams.ele, true, false)
 
         if dmg > 0 then
             dmg = dmg - target:getMod(xi.mod.PHALANX)
@@ -940,8 +913,11 @@ xi.weaponskills.takeWeaponskillDamage = function(defender, attacker, wsParams, p
             end
 
             if finaldmg > 0 then
-                action:reaction(defender:getID(), xi.reaction.HIT)
-                action:speceffect(defender:getID(), xi.specEffect.RECOIL)
+                if wsResults.guardedHits and wsResults.guardedHits > 0 then
+                    action:resolution(defender:getID(), xi.action.resolution.GUARD)
+                else
+                    action:resolution(defender:getID(), xi.action.resolution.HIT)
+                end
             end
         else
             if primaryMsg then
@@ -951,7 +927,7 @@ xi.weaponskills.takeWeaponskillDamage = function(defender, attacker, wsParams, p
             end
         end
 
-        action:param(defender:getID(), math.abs(finaldmg))
+        action:recordDamage(defender, attack.type, math.abs(finaldmg), wsResults.criticalHit)
     elseif wsResults.shadowsAbsorbed > 0 then
         action:messageID(defender:getID(), xi.msg.basic.SHADOW_ABSORB)
         action:param(defender:getID(), wsResults.shadowsAbsorbed)
@@ -962,7 +938,7 @@ xi.weaponskills.takeWeaponskillDamage = function(defender, attacker, wsParams, p
             action:messageID(defender:getID(), xi.msg.basic.EVADES)
         end
 
-        action:reaction(defender:getID(), xi.reaction.EVADE)
+        action:resolution(defender:getID(), xi.action.resolution.MISS)
     end
 
     local targetTPMult   = wsParams.targetTPMult or 1
@@ -977,12 +953,6 @@ xi.weaponskills.takeWeaponskillDamage = function(defender, attacker, wsParams, p
     end
 
     finaldmg = defender:takeWeaponskillDamage(attacker, finaldmg, attack.type, attack.damageType, attack.slot, primaryMsg, wsResults.tpHitsLanded * attackerTPMult, (wsResults.extraHitsLanded * 10) + wsResults.bonusTP, targetTPMult)
-
-    if wsResults.tpHitsLanded + wsResults.extraHitsLanded > 0 then
-        if finaldmg >= 0 then
-            action:param(defender:getID(), math.abs(finaldmg))
-        end
-    end
 
     local enmityEntity = wsResults.taChar or attacker
 

@@ -2441,11 +2441,6 @@ function CBaseEntity:disableLevelSync()
 end
 
 ---@nodiscard
----@return boolean
-function CBaseEntity:isLevelSync()
-end
-
----@nodiscard
 ---@return integer
 function CBaseEntity:checkSoloPartyAlliance()
 end
@@ -3243,12 +3238,6 @@ end
 function CBaseEntity:rangedDmgTaken(damage, damageType)
 end
 
----@nodiscard
----@param damage number
----@return integer
-function CBaseEntity:breathDmgTaken(damage)
-end
-
 ---@param damage number
 ---@return nil
 function CBaseEntity:handleAfflatusMiseryDamage(damage)
@@ -3709,13 +3698,9 @@ function CBaseEntity:getModelSize()
 end
 
 ---@nodiscard
+---@param target CBaseEntity
 ---@return number
-function CBaseEntity:getMeleeRange()
-end
-
----@param range number
----@return nil
-function CBaseEntity:setMeleeRange(range)
+function CBaseEntity:getMeleeRange(target)
 end
 
 ---@param flags integer
@@ -3998,8 +3983,9 @@ end
 ---@param PLuaBaseEntity CBaseEntity
 ---@param offset integer
 ---@param degrees integer
+---@param position table
 ---@return nil
-function CBaseEntity:drawIn(PLuaBaseEntity, offset, degrees)
+function CBaseEntity:drawIn(PLuaBaseEntity, offset, degrees, position)
 end
 
 ---@return nil

@@ -35,6 +35,7 @@
 #include "common/utils.h"
 
 #include "ability.h"
+#include "action/action.h"
 #include "alliance.h"
 #include "aman.h"
 #include "battlefield.h"
@@ -76,7 +77,6 @@
 #include "ai/states/magic_state.h"
 #include "ai/states/mobskill_state.h"
 #include "ai/states/petskill_state.h"
-#include "ai/states/raise_state.h"
 #include "ai/states/range_state.h"
 #include "ai/states/respawn_state.h"
 #include "ai/states/weaponskill_state.h"
@@ -98,7 +98,6 @@
 #include "items/item_furnishing.h"
 #include "items/item_linkshell.h"
 
-#include "packets/action.h"
 #include "packets/char_status.h"
 #include "packets/char_sync.h"
 #include "packets/entity_update.h"
@@ -110,6 +109,7 @@
 #include "packets/s2c/0x01f_item_list.h"
 #include "packets/s2c/0x020_item_attr.h"
 #include "packets/s2c/0x027_talknumwork2.h"
+#include "packets/s2c/0x028_battle2.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "packets/s2c/0x02a_talknumwork.h"
 #include "packets/s2c/0x02d_battle_message2.h"
@@ -907,28 +907,33 @@ void CLuaBaseEntity::injectPacket(const std::string& filename)
  *  Notes   : Used for very special cases, like JoL or Plouton generating action packets that only play animations, and don't actually use abilities.
  *            There are no safeties, You can crash a client with malformed parameters. You have been warned.
  ************************************************************************/
-void CLuaBaseEntity::injectActionPacket(uint32 inTargetID, uint16 inCategory, uint16 inAnimationID, uint16 inSpecEffect, uint16 inReaction, uint16 inMessage, uint16 inActionParam, uint16 inParam)
+void CLuaBaseEntity::injectActionPacket(const uint32 inTargetID, uint16 inCategory, uint16 inAnimationID, uint16 inInfo, uint16 inReaction, uint16 inMessage, const uint16 inActionParam, const uint16 inParam) const
 {
-    SPECEFFECT speceffect = static_cast<SPECEFFECT>(inSpecEffect);
-    REACTION   reaction   = static_cast<REACTION>(inReaction);
-    ACTIONTYPE actiontype = static_cast<ACTIONTYPE>(inCategory);
+    auto info       = static_cast<ActionInfo>(inInfo);
+    auto reaction   = static_cast<ActionResolution>(inReaction);
+    auto actiontype = static_cast<ActionCategory>(inCategory);
 
-    action_t Action;
+    action_t Action{
+        .actorId    = m_PBaseEntity->id,
+        .actiontype = actiontype,
+        .actionid   = inActionParam,
+        .targets    = {
+            {
+                   .actorId = inTargetID,
+                   .results = {
+                    {
+                           .resolution = reaction,
+                           .animation  = static_cast<ActionAnimation>(inAnimationID),
+                           .info       = info,
+                           .param      = inParam,
+                           .messageID  = static_cast<MSGBASIC_ID>(inMessage),
+                    },
+                },
+            },
+        },
+    };
 
-    Action.id       = m_PBaseEntity->id;
-    Action.actionid = inActionParam;
-
-    Action.actiontype      = actiontype;
-    actionList_t& list     = Action.getNewActionList();
-    list.ActionTargetID    = inTargetID;
-    actionTarget_t& target = list.getNewActionTarget();
-    target.animation       = inAnimationID;
-    target.param           = inParam;
-    target.messageID       = inMessage;
-    target.speceffect      = speceffect;
-    target.reaction        = reaction;
-
-    m_PBaseEntity->loc.zone->PushPacket(m_PBaseEntity, CHAR_INRANGE_SELF, std::make_unique<CActionPacket>(Action));
+    m_PBaseEntity->loc.zone->PushPacket(m_PBaseEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(Action));
 }
 
 /************************************************************************
@@ -1720,7 +1725,7 @@ uint8 CLuaBaseEntity::getCurrentAction()
     {
         action = 24;
     }
-    else if (m_PBaseEntity->PAI->IsCurrentState<CRaiseState>())
+    else if (m_PBaseEntity->PAI->IsCurrentState<CDeathState>() && m_PBaseEntity->objtype == TYPE_PC && static_cast<CCharEntity*>(m_PBaseEntity)->m_hasRaise)
     {
         action = 37;
     }
@@ -1734,7 +1739,7 @@ uint8 CLuaBaseEntity::getCurrentAction()
 
         if (PPetSkillState)
         {
-            action = PPetSkillState->GetPetSkill()->getSkillFinishCategory();
+            action = static_cast<uint8>(PPetSkillState->GetPetSkill()->getSkillFinishCategory());
         }
     }
     else
@@ -1915,7 +1920,7 @@ void CLuaBaseEntity::pathTo(float x, float y, float z, const sol::object& flags)
 
     if (m_PBaseEntity->PAI->PathFind)
     {
-        uint8 pathFlags = (flags != sol::lua_nil) ? flags.as<uint8>() : (PATHFLAG_RUN | PATHFLAG_WALLHACK | PATHFLAG_SCRIPT);
+        uint8 pathFlags = (flags != sol::lua_nil) ? flags.as<uint8>() : static_cast<uint8>(PATHFLAG_RUN | PATHFLAG_WALLHACK | PATHFLAG_SCRIPT);
 
         m_PBaseEntity->PAI->PathFind->PathTo(point, pathFlags);
     }
@@ -2627,7 +2632,7 @@ void CLuaBaseEntity::sendEmote(const CLuaBaseEntity* target, uint8 emID, uint8 e
 /************************************************************************
  *  Function: getWorldAngle()
  *  Purpose : Returns angle between two entities, relative to cardinal direction
- *  Example : player:worldAngle(target)
+ *  Example : player:getWorldAngle(target)
  *  Notes   : Target is... 0: east; 64: south; 128: west, 192: north
  *            Default angle is 255-based mob rotation value - NOT a 360 angle
  *            CAREFUL! If the entities are too close, this can return unexpected results.
@@ -11622,31 +11627,6 @@ void CLuaBaseEntity::disableLevelSync()
 }
 
 /************************************************************************
- *  Function: isLevelSync()
- *  Purpose :
- *  Example : player:isLevelSync()
- *  Notes   :
- ************************************************************************/
-
-bool CLuaBaseEntity::isLevelSync()
-{
-    if (m_PBaseEntity->objtype != TYPE_PC)
-    {
-        ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
-        return false;
-    }
-
-    auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
-
-    if (PChar->PParty)
-    {
-        return PChar->PParty->GetSyncTarget() && PChar->PParty->GetSyncTarget() != PChar;
-    }
-
-    return false;
-}
-
-/************************************************************************
  *  Function: checkSoloPartyAlliance()
  *  Purpose : Checks if Entity is solo, in a party, or in an alliance
  *  Example : local popularityCheck = player:checkSoloPartyAlliance()
@@ -14726,45 +14706,24 @@ uint16 CLuaBaseEntity::getStat(uint16 statId, sol::variadic_args va)
             value               = PEntity->ATT(weaponSlot);
         }
         break;
-        case Mod::RATT:
+        case Mod::ACC:
         {
-            SKILLTYPE skill = SKILL_NONE;
-
-            if (PEntity->objtype == TYPE_PET && static_cast<CPetEntity*>(PEntity)->getPetType() == PET_TYPE::AUTOMATON)
-            {
-                skill = SKILLTYPE::SKILL_AUTOMATON_RANGED;
-                value = PEntity->RATT(skill);
-            }
-            else
-            {
-                CItemWeapon* PWeapon = dynamic_cast<CItemWeapon*>(PEntity->m_Weapons[SLOTTYPE::SLOT_RANGED]);
-                if (PWeapon)
-                {
-                    value = PEntity->RATT(PWeapon->getSkillType());
-                }
-                else
-                {
-                    PWeapon = dynamic_cast<CItemWeapon*>(PEntity->m_Weapons[SLOTTYPE::SLOT_AMMO]);
-                    if (PWeapon)
-                    {
-                        value = PEntity->RATT(PWeapon->getSkillType());
-                    }
-                    else
-                    {
-                        ShowError("CLuaBaseEntity::getStat(): Ranged attack with no ranged weapon or ammo, defaulting to marksmanship");
-                        value = PEntity->RATT(SKILL_MARKSMANSHIP); // TODO: does this edge case exist? will mobs or trusts hit this?
-                    }
-                }
-            }
+            uint8_t attackNumber = va[0].is<uint8>() ? va[0].as<uint8>() : 0;
+            value                = PEntity->ACC(attackNumber, 0);
         }
         break;
+        case Mod::RATT:
+            value = PEntity->RATT();
+            break;
+        case Mod::RACC:
+            value = PEntity->RACC();
+            break;
         case Mod::DEF:
             value = PEntity->DEF();
             break;
         case Mod::EVA:
             value = PEntity->EVA();
             break;
-        // TODO: support getStat for ACC/RACC/RATT
         default:
             // We should probably show a warning here
             break;
@@ -14816,8 +14775,7 @@ uint16 CLuaBaseEntity::getEVA()
  *  Function: getRACC()
  *  Purpose : Calculates and returns the Ranged Accuracy of a Weapon euipped in the Ranged slot
  *  Example : player:getRACC()
- *  Notes   : TODO: The calculation is already a public member of battleentity, shouldn't have two calculations, just call (CBattleEntity*)m_PBaseEntity)->RACC
- *            and return result
+ *  Notes   :
  ************************************************************************/
 
 int CLuaBaseEntity::getRACC()
@@ -14829,26 +14787,7 @@ int CLuaBaseEntity::getRACC()
         return 0;
     }
 
-    auto* weapon = dynamic_cast<CItemWeapon*>(PEntity->m_Weapons[SLOT_RANGED]);
-    if (weapon == nullptr)
-    {
-        ShowDebug("lua::getRACC weapon in ranged slot is nullptr!");
-        return 0;
-    }
-
-    int skill = PEntity->GetSkill(weapon->getSkillType());
-    int acc   = skill;
-
-    if (skill > 200)
-    {
-        acc = (int)(200 + (skill - 200) * 0.9);
-    }
-
-    acc += PEntity->getMod(Mod::RACC);
-    acc += PEntity->AGI() / 2;
-    acc = acc + std::min<int16>(((100 + PEntity->getMod(Mod::FOOD_RACCP)) * acc / 100), PEntity->getMod(Mod::FOOD_RACC_CAP));
-
-    return acc;
+    return PEntity->RACC(0);
 }
 
 /************************************************************************
@@ -14860,21 +14799,14 @@ int CLuaBaseEntity::getRACC()
 
 uint16 CLuaBaseEntity::getRATT()
 {
-    if (m_PBaseEntity->objtype == TYPE_NPC)
+    auto* PEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
+    if (!PEntity)
     {
-        ShowWarning("Invalid Entity (NPC: %s) calling function.", m_PBaseEntity->getName());
+        ShowError("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
         return 0;
     }
 
-    auto* weapon = dynamic_cast<CItemWeapon*>(static_cast<CBattleEntity*>(m_PBaseEntity)->m_Weapons[SLOT_RANGED]);
-
-    if (weapon == nullptr)
-    {
-        ShowDebug("lua::getRATT weapon in ranged slot is nullptr!");
-        return 0;
-    }
-
-    return static_cast<CBattleEntity*>(m_PBaseEntity)->RATT(weapon->getSkillType(), weapon->getILvlSkill());
+    return PEntity->RATT(0);
 }
 
 /************************************************************************
@@ -15013,24 +14945,6 @@ int32 CLuaBaseEntity::rangedDmgTaken(double damage, sol::variadic_args va)
     DAMAGE_TYPE damageType = va[0].is<uint32>() ? va[0].as<DAMAGE_TYPE>() : DAMAGE_TYPE::NONE;
 
     return battleutils::RangedDmgTaken(static_cast<CBattleEntity*>(m_PBaseEntity), static_cast<int32>(damage), damageType);
-}
-
-/************************************************************************
- *  Function: breathDmgTaken()
- *  Purpose : Returns the value of Breath Damage taken after calculation
- *  Example : local dmg = target:breathDmgTaken(dmg)
- *  Notes   : Passes argument to BreathDmgTaken member of battleutils
- ************************************************************************/
-
-int32 CLuaBaseEntity::breathDmgTaken(double damage)
-{
-    if (m_PBaseEntity->objtype == TYPE_NPC)
-    {
-        ShowWarning("Invalid Entity (NPC: %s) calling function.", m_PBaseEntity->getName());
-        return 0;
-    }
-
-    return battleutils::BreathDmgTaken(static_cast<CBattleEntity*>(m_PBaseEntity), static_cast<int32>(damage));
 }
 
 /************************************************************************
@@ -17084,7 +16998,7 @@ uint8 CLuaBaseEntity::getModelSize()
  *  Notes   :
  ************************************************************************/
 
-float CLuaBaseEntity::getMeleeRange()
+float CLuaBaseEntity::getMeleeRange(CLuaBaseEntity* target)
 {
     auto* PEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
     if (!PEntity)
@@ -17093,48 +17007,14 @@ float CLuaBaseEntity::getMeleeRange()
         return 0;
     }
 
-    return PEntity->GetMeleeRange();
-}
-
-/************************************************************************
- *  Function: setMeleeRange()
- *  Purpose : Sets the maximum melee range for a mob
- *  Example : mob:setMeleeRange(12.0)
- *  Notes   : This affects the distance players can hit the mob from
- ************************************************************************/
-void CLuaBaseEntity::setMeleeRange(float range)
-{
-    // Only valid for mobs
-    if (m_PBaseEntity->objtype != TYPE_MOB)
+    auto* PTarget = dynamic_cast<CBattleEntity*>(target->m_PBaseEntity);
+    if (!PTarget)
     {
-        ShowWarning("Attempt to set melee range for non-mob entity (%s).", m_PBaseEntity->getName());
-        return;
+        ShowWarning("Invalid Entity (NPC: %s) calling function.", m_PBaseEntity->getName());
+        return 0;
     }
 
-    auto* PMob = static_cast<CMobEntity*>(m_PBaseEntity);
-
-    // Ensure that the cast to MobEntity worked properly and we dont have a NULL PTR
-    if (!PMob)
-    {
-        ShowWarning("Error casting to CMobEntity in CLuaBaseEntity::setMeleeRange()");
-        return;
-    }
-
-    // Account for zero/negative values and set to default melee range value
-    if (range < 3.0f)
-    {
-        range = 3.0f;
-    }
-    else
-    {
-        // Ensure that the range has a precision of .1
-        range = ((float)((int)(range * 10))) / 10;
-    }
-
-    // Update the melee range
-    PMob->m_ModelRadius = range;
-
-    return;
+    return PEntity->GetMeleeRange(PTarget);
 }
 
 /************************************************************************
@@ -18350,6 +18230,18 @@ void CLuaBaseEntity::usePetAbility(uint16 skillId, const sol::object& target) co
 {
     CBattleEntity* PTarget{ nullptr };
 
+    // Don't queue an ability if we're not in auto attack state or no state
+    if (!m_PBaseEntity->PAI->IsCurrentState<CAttackState>() && !m_PBaseEntity->PAI->IsStateStackEmpty())
+    {
+        return;
+    }
+
+    // Don't queue an ability if we are unable to act
+    if (auto PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity); PBattleEntity && PBattleEntity->StatusEffectContainer->HasPreventActionEffect())
+    {
+        return;
+    }
+
     if (!battleutils::GetPetSkill(skillId))
     {
         return;
@@ -18430,8 +18322,10 @@ bool CLuaBaseEntity::hasTPMoves()
 /************************************************************************
  *  Function: drawIn()
  *  Purpose : Draws in the target, or current target if not specified
- *  Example : mob:drawIn()     mob:drawIn(player)
+ *  Example : mob:drawIn()     mob:drawIn(player, 0, 0, {x=100, y=0, z=200, rot=64})
  *  Notes   : Draws in a player even if within the draw-in leash
+ *            Optional 4th parameter: custom position table to draw to (instead of mob position)
+ *  TODO    : Cleanup and centralize all draw-in functions
  ************************************************************************/
 void CLuaBaseEntity::drawIn(const sol::variadic_args& va) const
 {
@@ -18459,6 +18353,7 @@ void CLuaBaseEntity::drawIn(const sol::variadic_args& va) const
     const CLuaBaseEntity* PLuaBaseEntity = va.get<CLuaBaseEntity*>(0);
     const float           offset         = va.get<float>(1);
     const float           degrees        = va.get<float>(2);
+    const sol::object     customPosObj   = va.get<sol::object>(3);
 
     if (!PLuaBaseEntity)
     {
@@ -18476,7 +18371,19 @@ void CLuaBaseEntity::drawIn(const sol::variadic_args& va) const
 
     if (PTarget)
     {
-        battleutils::DrawIn(PTarget, mobObj->loc.p, offset, degrees);
+        position_t drawInPos = mobObj->loc.p;
+
+        // If a custom position table is provided, use it instead of mob's position
+        if (customPosObj.valid() && customPosObj.is<sol::table>())
+        {
+            sol::table posTable = customPosObj.as<sol::table>();
+            drawInPos.x         = posTable.get_or("x", mobObj->loc.p.x);
+            drawInPos.y         = posTable.get_or("y", mobObj->loc.p.y);
+            drawInPos.z         = posTable.get_or("z", mobObj->loc.p.z);
+            drawInPos.rotation  = posTable.get_or("rot", mobObj->loc.p.rotation);
+        }
+
+        battleutils::DrawIn(PTarget, drawInPos, offset, degrees);
     }
 }
 
@@ -18513,11 +18420,11 @@ void CLuaBaseEntity::restoreFromChest(CLuaBaseEntity* PLuaBaseEntity, uint32 res
     {
         CBaseEntity* PTarget = PLuaBaseEntity->GetBaseEntity();
 
-        uint16 animationID  = 0;
-        int    messageParam = 0;
-        int    messageID    = 0;
-        int    addedHP      = 0;
-        int    addedMP      = 0;
+        ActionAnimation animationID  = ActionAnimation::None;
+        int             messageParam = 0;
+        MSGBASIC_ID     messageID    = MSGBASIC_NONE;
+        int             addedHP      = 0;
+        int             addedMP      = 0;
 
         if (PChar->animation != ANIMATION_DEATH)
         {
@@ -18528,26 +18435,34 @@ void CLuaBaseEntity::restoreFromChest(CLuaBaseEntity* PLuaBaseEntity, uint32 res
             {
                 case 1:
                     messageParam = addedHP;
-                    messageID    = 587;
-                    animationID  = 772;
+                    messageID    = MSGBASIC_TARGET_REGAINS_HP;
+                    animationID  = ActionAnimation::RegainHP;
                     break;
                 case 2:
                     messageParam = addedMP;
-                    messageID    = 588;
-                    animationID  = 773;
+                    messageID    = MSGBASIC_TARGET_REGAINS_MP;
+                    animationID  = ActionAnimation::RegainMP;
                     break;
             }
 
-            action_t Action;
-            Action.id              = PTarget->id;
-            Action.actiontype      = ACTION_MOBABILITY_FINISH;
-            actionList_t& list     = Action.getNewActionList();
-            list.ActionTargetID    = PChar->id;
-            actionTarget_t& target = list.getNewActionTarget();
-            target.animation       = animationID;
-            target.messageID       = messageID;
-            target.param           = messageParam;
-            PTarget->loc.zone->PushPacket(PTarget, CHAR_INRANGE, std::make_unique<CActionPacket>(Action));
+            auto Action = action_t{
+                .actorId    = PTarget->id,
+                .actiontype = ActionCategory::MobSkillFinish,
+                .targets    = {
+                    {
+                           .actorId = PChar->id,
+                           .results = {
+                            {
+                                   .animation = animationID,
+                                   .param     = messageParam,
+                                   .messageID = messageID,
+                            },
+                        },
+                    },
+                },
+            };
+
+            PTarget->loc.zone->PushPacket(PTarget, CHAR_INRANGE, std::make_unique<GP_SERV_COMMAND_BATTLE2>(Action));
         }
     }
 }
@@ -19946,7 +19861,6 @@ void CLuaBaseEntity::Register()
 
     SOL_REGISTER("reloadParty", CLuaBaseEntity::reloadParty);
     SOL_REGISTER("disableLevelSync", CLuaBaseEntity::disableLevelSync);
-    SOL_REGISTER("isLevelSync", CLuaBaseEntity::isLevelSync);
 
     SOL_REGISTER("checkSoloPartyAlliance", CLuaBaseEntity::checkSoloPartyAlliance);
 
@@ -20111,7 +20025,6 @@ void CLuaBaseEntity::Register()
 
     SOL_REGISTER("physicalDmgTaken", CLuaBaseEntity::physicalDmgTaken);
     SOL_REGISTER("rangedDmgTaken", CLuaBaseEntity::rangedDmgTaken);
-    SOL_REGISTER("breathDmgTaken", CLuaBaseEntity::breathDmgTaken);
     SOL_REGISTER("handleAfflatusMiseryDamage", CLuaBaseEntity::handleAfflatusMiseryDamage);
 
     SOL_REGISTER("isWeaponTwoHanded", CLuaBaseEntity::isWeaponTwoHanded);
@@ -20214,7 +20127,6 @@ void CLuaBaseEntity::Register()
 
     SOL_REGISTER("getModelSize", CLuaBaseEntity::getModelSize);
     SOL_REGISTER("getMeleeRange", CLuaBaseEntity::getMeleeRange);
-    SOL_REGISTER("setMeleeRange", CLuaBaseEntity::setMeleeRange);
     SOL_REGISTER("setMobFlags", CLuaBaseEntity::setMobFlags);
     SOL_REGISTER("getMobFlags", CLuaBaseEntity::getMobFlags);
     SOL_REGISTER("setNpcFlags", CLuaBaseEntity::setNpcFlags);

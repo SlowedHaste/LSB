@@ -91,7 +91,8 @@ xi.battlefield.returnCode =
     INCREMENT_REQUEST = 3,
     LOCKED            = 4,
     REQS_NOT_MET      = 5,
-    BATTLEFIELD_FULL  = 6
+    BATTLEFIELD_FULL  = 6,
+    PARTY_ENGAGED     = 9, -- Used as 2nd parameter to LOCKED
 }
 
 xi.battlefield.leaveCode =
@@ -449,6 +450,8 @@ function Battlefield:new(data)
     obj.armouryCrates    = data.armouryCrates or false
     obj.experimental     = data.experimental or false
     obj.allowedAreas     = data.allowedAreas
+    obj.csParam7         = data.csParam7 and data.csParam7 or 0
+    obj.csParam8         = data.csParam8 and data.csParam8 or 0
 
     obj.sections = obj.sections or { { [obj.zoneId] = {} } }
     obj.groups   = {}
@@ -777,6 +780,16 @@ end
 -- will still send the appropriate position packet, but not change the values for the player.
 
 function Battlefield:onEntryEventUpdate(player, csid, option, npc)
+    -- Can't enter if party locked the battlefield
+    local isEnteringExisting = player:getLocalVar('[BCNM]EnterExisting') == 1
+    if isEnteringExisting and not player:hasStatusEffect(xi.effect.BATTLEFIELD) then
+        player:setLocalVar('[BCNM]EnterExisting', 0)
+        player:setLocalVar('[battlefield]area', 0)
+        player:updateEvent(xi.battlefield.returnCode.LOCKED, xi.battlefield.returnCode.PARTY_ENGAGED)
+        player:setLocalVar('noPosUpdate', 1)
+        return 0
+    end
+
     local clearTime = 1
     local name      = 'Meme'
     local partySize = 1
@@ -877,7 +890,7 @@ function Battlefield:onEntryEventUpdate(player, csid, option, npc)
     end
 
     local autoSkipCS = self:getLocalVar(player, 'CS') == 1 and 100 or 0
-    player:updateEvent(result, self.index, autoSkipCS, clearTime, partySize, self:checkSkipCutscene(player))
+    player:updateEvent(result, self.index, autoSkipCS, clearTime, partySize, self:checkSkipCutscene(player), self.csParam7, self.csParam8)
     player:updateEventString(name)
 
     return (status < xi.battlefield.status.LOCKED and result < xi.battlefield.returnCode.LOCKED) and 1 or 0
@@ -1255,7 +1268,7 @@ end
 function Battlefield:handleOpenArmouryCrate(player, npc)
     npcUtil.openCrate(npc, function()
         local battlefield = player:getBattlefield()
-        self:handleLootRolls(battlefield, self.loot, npc)
+        self:handleLootRolls(battlefield, self.loot, npc, player:getMod(xi.mod.MOGHANCEMENT_GIL_BONUS_P))
         battlefield:setStatus(xi.battlefield.status.WON)
         battlefield:setLocalVar('cutsceneTimer', self.delayToExit)
 
@@ -1263,7 +1276,7 @@ function Battlefield:handleOpenArmouryCrate(player, npc)
     end)
 end
 
-function Battlefield:handleLootRolls(battlefield, lootTable, npc)
+function Battlefield:handleLootRolls(battlefield, lootTable, npc, gilBonusMod)
     local players = battlefield:getPlayers()
     local firstPlayer = players[1]
 
@@ -1272,10 +1285,11 @@ function Battlefield:handleLootRolls(battlefield, lootTable, npc)
         if entry.itemId ~= xi.item.GIL then
             firstPlayer:addTreasure(entry.itemId, npc)
         else
-            local gilPerPlayer = entry.amount / #players
+            local gilBonusPct  = (100 + gilBonusMod) / 100
+            local gilPerPlayer = entry.amount * gilBonusPct / #players
 
             for _, player in ipairs(players) do
-                npcUtil.giveCurrency(player, 'gil', gilPerPlayer)
+                npcUtil.giveCurrency(player, 'gil', gilPerPlayer, true)
             end
         end
     end
@@ -1307,7 +1321,7 @@ end
 
 function xi.battlefield.rejectLevelSyncedParty(player, npc)
     for _, member in pairs(player:getAlliance()) do
-        if member:isLevelSync() then
+        if member:hasStatusEffect(xi.effect.LEVEL_SYNC) then
             local zoneId = player:getZoneID()
             local ID     = zones[zoneId]
 
